@@ -124,10 +124,11 @@ class TaskManagerService:
                     working_branch=working_branch,
                 )
             except Exception as clone_err:
-                logger.warning(
-                    f"Remote clone failed ({clone_err}); initializing local repository for testing/bootstrapping."
+                logger.error(
+                    f"Failed to initialize repository '{repository_url}': {clone_err}",
+                    exc_info=True,
                 )
-                git_manager.init_local_empty_repo(default_branch=base_branch)
+                raise
 
             # 2. Update DB to RUNNING and build Graph with DB repository
             async with session_factory() as session:
