@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-software-engineer-agent"
+version = "0.1.0"
+description = "Autonomous AI Software Engineer Agent with Sandboxing, LangGraph, and Human-in-the-Loop Controls"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Harsh Kumar" }
+]
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.28.0",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.2.0",
+    "sqlalchemy>=2.0.28",
+    "aiosqlite>=0.20.0",
+    "google-genai>=0.1.1",
+    "langgraph>=0.0.30",
+    "langchain-core>=0.1.30",
+    "GitPython>=3.1.42",
+    "PyGithub>=2.2.0",
+    "docker>=7.0.0",
+    "sse-starlette>=2.0.0",
+    "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.1.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.12.0",
+    "ruff>=0.3.0",
+    "mypy>=1.9.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+exclude = ["tests*", "temp_workspaces*", "data*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

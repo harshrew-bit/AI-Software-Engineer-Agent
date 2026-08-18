@@ -1,0 +1,121 @@
+"""Base Tool Interface and Execution Context."""
+
+import time
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Type, TypeVar
+import uuid
+from pydantic import BaseModel, Field
+
+from app.config.settings import Settings
+from app.database.repository import TaskRepository
+from app.llm.base import ToolDefinition
+from app.models.enums import ApprovalStatus, ToolCategory
+from app.repository.git_manager import GitWorkspaceManager
+from app.sandbox.base import BaseSandbox
+
+T = TypeVar("T", bound=BaseModel)
+
+
+@dataclass
+class ToolExecutionContext:
+    """Runtime context passed to tools during execution."""
+    task_id: str
+    workspace_path: Path
+    git_manager: GitWorkspaceManager
+    sandbox: BaseSandbox
+    settings: Settings
+    repository: Optional[TaskRepository] = None
+
+
+class ToolResult(BaseModel):
+    """Normalized result returned from tool execution."""
+    call_id: str = Field(default_factory=lambda: f"call_{uuid.uuid4().hex[:8]}")
+    tool_name: str
+    success: bool
+    output: Optional[str] = None
+    error: Optional[str] = None
+    exit_code: Optional[int] = None
+    execution_time_ms: float = 0.0
+    requires_approval: bool = False
+    approval_status: ApprovalStatus = ApprovalStatus.NOT_REQUIRED
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class BaseTool(ABC):
+    """Abstract Base Class for all agent tools."""
+
+    name: str
+    description: str
+    category: ToolCategory
+    args_schema: Type[BaseModel]
+    is_dangerous: bool = False
+
+    @abstractmethod
+    async def _run(self, args: Any, context: ToolExecutionContext) -> ToolResult:
+        """Internal execution method implemented by specific tools."""
+        pass
+
+    async def execute(self, input_data: Dict[str, Any] | BaseModel, context: ToolExecutionContext) -> ToolResult:
+        """Validate input arguments, enforce safety gates, measure timing, and run tool."""
+        start_time = time.perf_counter()
+        call_id = f"call_{uuid.uuid4().hex[:8]}"
+
+        # 1. Parse and validate arguments against Pydantic schema
+        try:
+            if isinstance(input_data, BaseModel):
+                validated_args = input_data
+            else:
+                validated_args = self.args_schema.model_validate(input_data)
+        except Exception as e:
+            return ToolResult(
+                call_id=call_id,
+                tool_name=self.name,
+                success=False,
+                error=f"Invalid arguments for tool '{self.name}': {str(e)}",
+                execution_time_ms=0.0,
+            )
+
+        # 2. Check dangerous action policy
+        requires_approval = (
+            self.is_dangerous
+            and context.settings.require_human_approval_for_destructive_actions
+        )
+
+        # 3. Execute tool
+        try:
+            result = await self._run(validated_args, context)
+            result.call_id = call_id
+            result.tool_name = self.name
+            result.requires_approval = requires_approval
+            result.execution_time_ms = (time.perf_counter() - start_time) * 1000.0
+            return result
+        except Exception as e:
+            return ToolResult(
+                call_id=call_id,
+                tool_name=self.name,
+                success=False,
+                error=f"Tool execution failed: {str(e)}",
+                execution_time_ms=(time.perf_counter() - start_time) * 1000.0,
+                requires_approval=requires_approval,
+            )
+
+    def to_tool_definition(self) -> ToolDefinition:
+        """Export tool metadata into LLM function declaration format."""
+        schema = self.args_schema.model_json_schema()
+        # Clean schema title and $defs if present
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
+
+        parameters = {
+            "type": "object",
+            "properties": properties,
+            "required": required,
+        }
+
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=parameters,
+        )
