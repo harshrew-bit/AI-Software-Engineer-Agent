@@ -208,15 +208,15 @@ async def coding_node(state: GraphState, context: WorkflowContext) -> GraphState
     modified_files: Set[str] = set(state.get("modified_files", []))
     pending_approval: Optional[Dict[str, Any]] = None
 
-    messages: List[LLMMessage] = [LLMMessage(role="user", content=coder_prompt)]
+    current_turn_messages: List[LLMMessage] = [LLMMessage(role="user", content=coder_prompt)]
     last_interaction_id: Optional[str] = None
     max_tool_rounds = 10
 
     for round_idx in range(max_tool_rounds):
         logger.info(f"[{task_id}] Coding round {round_idx + 1}/{max_tool_rounds}")
         response = await context.llm_client.generate(
-            messages=messages,
-            system_instruction=CODER_SYSTEM_PROMPT,
+            messages=current_turn_messages,
+            system_instruction=CODER_SYSTEM_PROMPT if not last_interaction_id else None,
             tools=tool_defs,
             previous_interaction_id=last_interaction_id,
         )
@@ -225,9 +225,9 @@ async def coding_node(state: GraphState, context: WorkflowContext) -> GraphState
 
         if not response.has_tool_calls:
             logger.info(f"[{task_id}] Model finished coding turn without additional tool calls.")
-            if response.content:
-                messages.append(LLMMessage(role="assistant", content=response.content))
             break
+
+        round_tool_messages: List[LLMMessage] = []
 
         # Execute each requested tool call through ToolRegistry (which performs safety checks & DB auditing)
         for tool_call in response.tool_calls:
@@ -291,7 +291,7 @@ async def coding_node(state: GraphState, context: WorkflowContext) -> GraphState
             else:
                 result_str = f"Error executing {tool_call.name}: {tool_res.error}"
 
-            messages.append(
+            round_tool_messages.append(
                 LLMMessage(
                     role="tool",
                     content=result_str,
@@ -302,6 +302,8 @@ async def coding_node(state: GraphState, context: WorkflowContext) -> GraphState
 
         if pending_approval:
             break
+
+        current_turn_messages = round_tool_messages
 
     # Inspect git status for all modified and untracked files
     try:

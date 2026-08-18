@@ -49,6 +49,188 @@ def test_gemini_tool_definition_formatting():
 
 
 @pytest.mark.asyncio
+async def test_gemini_initial_request_sends_normal_string_input():
+    """Requirement 17a: Verify initial Gemini request sends normal string input with system_instruction and tools."""
+    client = GeminiLLMClient(api_key="test-key")
+    mock_genai_client = MagicMock()
+    mock_interaction = MagicMock()
+    mock_interaction.id = "int_001"
+    mock_interaction.output_text = "I will list the files."
+    mock_interaction.steps = []
+    mock_interaction.usage = None
+    mock_genai_client.interactions.create.return_value = mock_interaction
+    client._client = mock_genai_client
+
+    tools = [
+        ToolDefinition(name="list_files", description="List repo files", parameters={"type": "object"})
+    ]
+
+    await client.generate(
+        messages=[LLMMessage(role="user", content="List all files in repo")],
+        system_instruction="You are an expert AI engineer.",
+        tools=tools,
+        previous_interaction_id=None,
+    )
+
+    kwargs = mock_genai_client.interactions.create.call_args[1]
+    # Initial request: string input
+    assert isinstance(kwargs["input"], str)
+    assert kwargs["input"] == "List all files in repo"
+    assert kwargs["system_instruction"] == "You are an expert AI engineer."
+    assert "previous_interaction_id" not in kwargs
+    assert len(kwargs["tools"]) == 1
+    assert kwargs["tools"][0]["name"] == "list_files"
+
+
+@pytest.mark.asyncio
+async def test_gemini_tool_result_turn_sends_structured_function_result():
+    """Requirement 17b-e, g, h: Verify tool-result turn sends structured function_result input."""
+    client = GeminiLLMClient(api_key="test-key")
+    mock_genai_client = MagicMock()
+    mock_interaction = MagicMock()
+    mock_interaction.id = "int_002"
+    mock_interaction.output_text = "Files found."
+    mock_interaction.steps = []
+    mock_interaction.usage = None
+    mock_genai_client.interactions.create.return_value = mock_interaction
+    client._client = mock_genai_client
+
+    tools = [
+        ToolDefinition(name="list_files", description="List repo files", parameters={"type": "object"})
+    ]
+
+    # Tool result message
+    tool_msg = LLMMessage(
+        role="tool",
+        content="No matching files found.",
+        name="list_files",
+        tool_call_id="call_6f4e7946",
+    )
+
+    await client.generate(
+        messages=[tool_msg],
+        tools=tools,
+        previous_interaction_id="int_001",
+    )
+
+    kwargs = mock_genai_client.interactions.create.call_args[1]
+
+    # 17b: input is a structured list (not a plain string)
+    assert isinstance(kwargs["input"], list)
+    assert len(kwargs["input"]) == 1
+
+    func_result = kwargs["input"][0]
+    # 17c: correct name
+    assert func_result["name"] == "list_files"
+    # 17d: correct call_id
+    assert func_result["call_id"] == "call_6f4e7946"
+    assert func_result["type"] == "function_result"
+    # 17e: result format is [{"type": "text", "text": "..."}]
+    assert func_result["result"] == [
+        {
+            "type": "text",
+            "text": "No matching files found.",
+        }
+    ]
+
+    # 17g: tools still supplied on subsequent interaction
+    assert len(kwargs["tools"]) == 1
+    assert kwargs["tools"][0]["name"] == "list_files"
+    # 17h: previous_interaction_id is supplied
+    assert kwargs["previous_interaction_id"] == "int_001"
+
+
+@pytest.mark.asyncio
+async def test_gemini_multiple_function_results_in_single_turn():
+    """Requirement 17f: Support multiple tool results in one model follow-up interaction."""
+    client = GeminiLLMClient(api_key="test-key")
+    mock_genai_client = MagicMock()
+    mock_interaction = MagicMock()
+    mock_interaction.id = "int_003"
+    mock_interaction.output_text = "Done executing both tools."
+    mock_interaction.steps = []
+    mock_interaction.usage = None
+    mock_genai_client.interactions.create.return_value = mock_interaction
+    client._client = mock_genai_client
+
+    tools = [
+        ToolDefinition(name="read_file", description="Read file", parameters={"type": "object"}),
+        ToolDefinition(name="list_files", description="List files", parameters={"type": "object"}),
+    ]
+
+    tool_msg_1 = LLMMessage(
+        role="tool",
+        content="File content: def hello(): pass",
+        name="read_file",
+        tool_call_id="call_read_1",
+    )
+    tool_msg_2 = LLMMessage(
+        role="tool",
+        content="main.py\nutils.py",
+        name="list_files",
+        tool_call_id="call_list_2",
+    )
+
+    await client.generate(
+        messages=[tool_msg_1, tool_msg_2],
+        tools=tools,
+        previous_interaction_id="int_002",
+    )
+
+    kwargs = mock_genai_client.interactions.create.call_args[1]
+
+    assert isinstance(kwargs["input"], list)
+    assert len(kwargs["input"]) == 2
+
+    assert kwargs["input"][0]["type"] == "function_result"
+    assert kwargs["input"][0]["name"] == "read_file"
+    assert kwargs["input"][0]["call_id"] == "call_read_1"
+    assert kwargs["input"][0]["result"][0]["text"] == "File content: def hello(): pass"
+
+    assert kwargs["input"][1]["type"] == "function_result"
+    assert kwargs["input"][1]["name"] == "list_files"
+    assert kwargs["input"][1]["call_id"] == "call_list_2"
+    assert kwargs["input"][1]["result"][0]["text"] == "main.py\nutils.py"
+
+    assert kwargs["previous_interaction_id"] == "int_002"
+    assert len(kwargs["tools"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_gemini_regression_tool_message_must_not_become_string_when_previous_interaction_id_used():
+    """Requirement 18: Regression test proving LLMMessage(role='tool') does NOT become '[TOOL RESULT ...]' string."""
+    client = GeminiLLMClient(api_key="test-key")
+    mock_genai_client = MagicMock()
+    mock_interaction = MagicMock()
+    mock_interaction.id = "int_004"
+    mock_interaction.output_text = "Analysis finished."
+    mock_interaction.steps = []
+    mock_interaction.usage = None
+    mock_genai_client.interactions.create.return_value = mock_interaction
+    client._client = mock_genai_client
+
+    tool_msg = LLMMessage(
+        role="tool",
+        content="No matching files found.",
+        name="list_files",
+        tool_call_id="call_6f4e7946",
+    )
+
+    await client.generate(
+        messages=[tool_msg],
+        previous_interaction_id="int_prev_999",
+    )
+
+    kwargs = mock_genai_client.interactions.create.call_args[1]
+
+    # MUST NOT be a string like "[TOOL RESULT for list_files (call_id: call_6f4e7946)]:\nNo matching files found."
+    assert not isinstance(kwargs["input"], str), "input must not be converted to string on tool turns with previous_interaction_id"
+    assert isinstance(kwargs["input"], list)
+    assert kwargs["input"][0]["type"] == "function_result"
+    assert "[TOOL RESULT" not in json.dumps(kwargs["input"])
+
+
+@pytest.mark.asyncio
 async def test_gemini_generate_tool_call_extraction():
     """Verify GeminiLLMClient.generate parses function_call steps into ToolCallRequest."""
     client = GeminiLLMClient(api_key="test-key")

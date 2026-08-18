@@ -69,25 +69,44 @@ class GeminiLLMClient(BaseLLMClient):
         max_tokens: Optional[int] = None,
         previous_interaction_id: Optional[str] = None,
     ) -> LLMResponse:
-        """Generate response or function calls from Gemini."""
+        """Generate response or function calls from Gemini with support for structured function results."""
         client = self._get_client()
 
-        # Build prompt or conversation history from messages
-        prompt_parts = []
-        for msg in messages:
-            if msg.role == "system" and not system_instruction:
-                system_instruction = msg.content
-            elif msg.role == "tool":
-                call_ref = f" (call_id: {msg.tool_call_id})" if msg.tool_call_id else ""
-                name_ref = f" for {msg.name}" if msg.name else ""
-                prompt_parts.append(f"[TOOL RESULT{name_ref}{call_ref}]:\n{msg.content}")
-            elif msg.role in ("user", "assistant"):
-                prompt_parts.append(f"[{msg.role.upper()}]: {msg.content}")
+        # Check if this is a tool-result follow-up turn using previous_interaction_id
+        tool_messages = [msg for msg in messages if msg.role == "tool"]
 
-        combined_input = "\n\n".join(prompt_parts)
+        if previous_interaction_id and tool_messages:
+            # Build structured function_result list for Gemini Interactions API
+            structured_input: List[Dict[str, Any]] = []
+            for msg in tool_messages:
+                structured_input.append({
+                    "type": "function_result",
+                    "name": msg.name,
+                    "call_id": msg.tool_call_id,
+                    "result": [
+                        {
+                            "type": "text",
+                            "text": msg.content,
+                        }
+                    ],
+                })
 
-        # Call Gemini Interactions API
-        try:
+            kwargs: Dict[str, Any] = {
+                "model": self.model_name,
+                "input": structured_input,
+                "previous_interaction_id": previous_interaction_id,
+            }
+        else:
+            # Initial interaction or standard text conversation: construct text prompt
+            prompt_parts = []
+            for msg in messages:
+                if msg.role == "system" and not system_instruction:
+                    system_instruction = msg.content
+                elif msg.role in ("user", "assistant"):
+                    prompt_parts.append(msg.content if len(messages) == 1 and msg.role == "user" else f"[{msg.role.upper()}]: {msg.content}")
+
+            combined_input = "\n\n".join(prompt_parts) if prompt_parts else ""
+
             kwargs: Dict[str, Any] = {
                 "model": self.model_name,
                 "input": combined_input,
@@ -99,9 +118,12 @@ class GeminiLLMClient(BaseLLMClient):
             if previous_interaction_id:
                 kwargs["previous_interaction_id"] = previous_interaction_id
 
-            if tools:
-                kwargs["tools"] = self._format_tools_for_gemini(tools)
+        # Tools are interaction-scoped and must be re-specified on each turn
+        if tools:
+            kwargs["tools"] = self._format_tools_for_gemini(tools)
 
+        # Call Gemini Interactions API
+        try:
             interaction = client.interactions.create(**kwargs)
 
             # Extract output text and tool calls if any

@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.database.repository import TaskRepository
 from app.database.session import get_session_factory
-from app.graph.builder import build_agent_graph
 from app.graph.state import GraphState
 from app.llm.base import BaseLLMClient
 from app.llm.factory import get_llm_client
@@ -140,6 +139,7 @@ class TaskManagerService:
                 )
 
                 tool_registry = create_default_tool_registry()
+                from app.graph.builder import build_agent_graph
                 app = build_agent_graph(
                     llm_client=self.llm_client,
                     tool_registry=tool_registry,
