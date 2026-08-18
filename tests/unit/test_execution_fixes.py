@@ -483,3 +483,31 @@ async def test_workflow_fails_when_tests_never_pass(tmp_path):
     assert final_state["latest_test_passed"] is False
     assert final_state.get("commit_sha") is None
     assert final_state.get("pull_request_url") is None
+
+def test_modify_file_tool_schema_resolves_pydantic_refs():
+    """modify_file tool schema should not contain unresolved JSON Schema refs."""
+    from app.tools.registry import create_default_tool_registry
+
+    registry = create_default_tool_registry()
+    tool = registry.get_tool("modify_file")
+
+    parameters = tool.to_tool_definition().parameters
+
+    schema_text = str(parameters)
+
+    assert "$ref" not in schema_text
+    assert "$defs" not in schema_text
+
+    replacements = parameters["properties"]["replacements"]
+    replacement_item = replacements["items"]
+
+    assert replacement_item["type"] == "object"
+    assert "old_content" in replacement_item["properties"]
+    assert "new_content" in replacement_item["properties"]
+    assert "start_line" in replacement_item["properties"]
+    assert "end_line" in replacement_item["properties"]
+
+    assert replacement_item["required"] == [
+        "old_content",
+        "new_content",
+    ]
