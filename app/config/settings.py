@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.2
     llm_max_tokens: int = 8192
     llm_timeout_seconds: int = 60
+    # Gemini API Retry Settings
+    gemini_max_retries: int = 2
+    gemini_retry_delay_seconds: float = 5.0
 
     # Database Settings
     database_url: str = "sqlite+aiosqlite:///./data/agent_tasks.db"

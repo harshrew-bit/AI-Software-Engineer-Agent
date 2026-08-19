@@ -1,7 +1,9 @@
 """Google Gemini LLM Implementation."""
 
+import asyncio
 import json
 import logging
+import re
 from typing import Any, Dict, List, Optional, Type, TypeVar
 from pydantic import BaseModel
 
@@ -35,6 +37,8 @@ class GeminiLLMClient(BaseLLMClient):
         self.model_name = model_name or settings.gemini_model or "gemini-3.6-flash"
         self.temperature = temperature if temperature is not None else settings.llm_temperature
         self.max_tokens = max_tokens or settings.llm_max_tokens
+        self.max_retries = settings.gemini_max_retries
+        self.retry_delay_seconds = settings.gemini_retry_delay_seconds
         self._client = None
 
     def _get_client(self):
@@ -59,6 +63,43 @@ class GeminiLLMClient(BaseLLMClient):
                 "parameters": tool.parameters,
             })
         return gemini_tools
+
+    @staticmethod
+    def _is_rate_limit_error(error: Exception) -> bool:
+        """Return True when the Gemini API error represents HTTP 429."""
+        status_code = (
+            getattr(error, "status_code", None)
+            or getattr(error, "status", None)
+            or getattr(error, "code", None)
+        )
+
+        if str(status_code) == "429":
+            return True
+
+        error_text = str(error)
+        return (
+            "429" in error_text
+            and (
+                "too_many_requests" in error_text.lower()
+                or "rate limit" in error_text.lower()
+                or "quota exceeded" in error_text.lower()
+            )
+        )
+
+    def _get_retry_delay(self, error: Exception) -> float:
+        """Extract Google's suggested retry delay, falling back to configured delay."""
+        error_text = str(error)
+
+        match = re.search(
+            r"retry in\s+([0-9]+(?:\.[0-9]+)?)s",
+            error_text,
+            re.IGNORECASE,
+        )
+
+        if match:
+            return float(match.group(1))
+
+        return self.retry_delay_seconds
 
     async def generate(
         self,
@@ -123,51 +164,79 @@ class GeminiLLMClient(BaseLLMClient):
             kwargs["tools"] = self._format_tools_for_gemini(tools)
 
         # Call Gemini Interactions API
-        try:
-            interaction = client.interactions.create(**kwargs)
+        # Call Gemini Interactions API with bounded 429 retry handling
+        interaction = None
 
-            # Extract output text and tool calls if any
-            content = getattr(interaction, "output_text", None)
-            interaction_id = getattr(interaction, "id", None)
-            tool_calls: List[ToolCallRequest] = []
+        for attempt in range(self.max_retries + 1):
+            try:
+                interaction = client.interactions.create(**kwargs)
+                break
 
-            # Check steps for function calls if present
-            steps = getattr(interaction, "steps", [])
-            for step in steps:
-                step_type = getattr(step, "type", None)
-                if step_type in ("function_call", "tool_call"):
-                    fc_name = getattr(step, "name", "")
-                    fc_args = getattr(step, "arguments", {})
-                    fc_id = getattr(step, "id", f"call_{fc_name}")
-                    if isinstance(fc_args, str):
-                        try:
-                            fc_args = json.loads(fc_args)
-                        except Exception:
-                            fc_args = {"raw": fc_args}
-                    tool_calls.append(
-                        ToolCallRequest(id=fc_id, name=fc_name, arguments=fc_args)
+            except Exception as e:
+                if not self._is_rate_limit_error(e):
+                    logger.error(f"Gemini API invocation error: {e}")
+                    raise
+
+                if attempt >= self.max_retries:
+                    logger.error(
+                        "Gemini API rate limit persisted after %d retries: %s",
+                        self.max_retries,
+                        e,
                     )
+                    raise
 
-            # Usage tracking
-            usage_obj = getattr(interaction, "usage", None)
-            usage = TokenUsage(
-                prompt_tokens=getattr(usage_obj, "prompt_tokens", 0) if usage_obj else 0,
-                completion_tokens=getattr(usage_obj, "completion_tokens", 0) if usage_obj else 0,
-                total_tokens=getattr(usage_obj, "total_tokens", 0) if usage_obj else 0,
-            )
+                delay = self._get_retry_delay(e)
 
-            return LLMResponse(
-                content=content,
-                tool_calls=tool_calls,
-                usage=usage,
-                finish_reason="stop" if not tool_calls else "tool_calls",
-                interaction_id=interaction_id,
-                raw_response=interaction,
-            )
+                logger.warning(
+                    "Gemini API rate limit (429). "
+                    "Retry %d/%d in %.2f seconds.",
+                    attempt + 1,
+                    self.max_retries,
+                    delay,
+                )
 
-        except Exception as e:
-            logger.error(f"Gemini API invocation error: {e}")
-            raise
+                await asyncio.sleep(delay)
+
+        # Extract output text and tool calls if any
+        content = getattr(interaction, "output_text", None)
+        interaction_id = getattr(interaction, "id", None)
+        tool_calls: List[ToolCallRequest] = []
+
+        # Check steps for function calls if present
+        steps = getattr(interaction, "steps", [])
+        for step in steps:
+            step_type = getattr(step, "type", None)
+            if step_type in ("function_call", "tool_call"):
+                fc_name = getattr(step, "name", "")
+                fc_args = getattr(step, "arguments", {})
+                fc_id = getattr(step, "id", f"call_{fc_name}")
+                if isinstance(fc_args, str):
+                    try:
+                        fc_args = json.loads(fc_args)
+                    except Exception:
+                        fc_args = {"raw": fc_args}
+                tool_calls.append(
+                    ToolCallRequest(id=fc_id, name=fc_name, arguments=fc_args)
+                )
+
+        # Usage tracking
+        usage_obj = getattr(interaction, "usage", None)
+        usage = TokenUsage(
+            prompt_tokens=getattr(usage_obj, "prompt_tokens", 0) if usage_obj else 0,
+            completion_tokens=getattr(usage_obj, "completion_tokens", 0) if usage_obj else 0,
+            total_tokens=getattr(usage_obj, "total_tokens", 0) if usage_obj else 0,
+        )
+
+        return LLMResponse(
+            content=content,
+            tool_calls=tool_calls,
+            usage=usage,
+            finish_reason="stop" if not tool_calls else "tool_calls",
+            interaction_id=interaction_id,
+            raw_response=interaction,
+        )
+
+
 
     async def generate_structured(
         self,
@@ -192,7 +261,39 @@ class GeminiLLMClient(BaseLLMClient):
         if system_instruction:
             kwargs["system_instruction"] = system_instruction
 
-        interaction = client.interactions.create(**kwargs)
+                # Call Gemini Interactions API with bounded 429 retry handling
+        interaction = None
+
+        for attempt in range(self.max_retries + 1):
+            try:
+                interaction = client.interactions.create(**kwargs)
+                break
+
+            except Exception as e:
+                if not self._is_rate_limit_error(e):
+                    logger.error(f"Gemini structured API invocation error: {e}")
+                    raise
+
+                if attempt >= self.max_retries:
+                    logger.error(
+                        "Gemini structured API rate limit persisted after %d retries: %s",
+                        self.max_retries,
+                        e,
+                    )
+                    raise
+
+                delay = self._get_retry_delay(e)
+
+                logger.warning(
+                    "Gemini structured API rate limit (429). "
+                    "Retry %d/%d in %.2f seconds.",
+                    attempt + 1,
+                    self.max_retries,
+                    delay,
+                )
+
+                await asyncio.sleep(delay)
+
         raw_text = getattr(interaction, "output_text", "")
 
         # Clean JSON markdown fences if present

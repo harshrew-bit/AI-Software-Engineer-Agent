@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 import pytest
+import asyncio
 
 from app.agents.schemas import DebugAnalysisOutput, PlanGenerationOutput, ReviewSummaryOutput
 from app.database.repository import TaskRepository
@@ -80,6 +81,142 @@ async def test_gemini_initial_request_sends_normal_string_input():
     assert "previous_interaction_id" not in kwargs
     assert len(kwargs["tools"]) == 1
     assert kwargs["tools"][0]["name"] == "list_files"
+
+@pytest.mark.asyncio
+async def test_gemini_retries_on_429_and_succeeds(monkeypatch):
+    """Gemini 429 errors should be retried using the configured retry delay."""
+    client = GeminiLLMClient(api_key="test-key")
+    mock_genai_client = MagicMock()
+
+    mock_interaction = MagicMock()
+    mock_interaction.id = "int_retry_success"
+    mock_interaction.output_text = "Success after retry"
+    mock_interaction.steps = []
+    mock_interaction.usage = None
+
+    rate_limit_error = Exception(
+        "Error code: 429 - too_many_requests. Please retry in 0.1s."
+    )
+
+    mock_genai_client.interactions.create.side_effect = [
+        rate_limit_error,
+        mock_interaction,
+    ]
+
+    client._client = mock_genai_client
+    client.max_retries = 2
+
+    sleep_mock = MagicMock()
+
+    async def fake_sleep(delay):
+        sleep_mock(delay)
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+
+    response = await client.generate(
+        messages=[LLMMessage(role="user", content="Hello")],
+    )
+
+    assert response.content == "Success after retry"
+    assert mock_genai_client.interactions.create.call_count == 2
+    sleep_mock.assert_called_once_with(0.1)
+
+@pytest.mark.asyncio
+async def test_gemini_429_retries_are_bounded(monkeypatch):
+    """Gemini 429 errors should eventually be raised after max retries."""
+    client = GeminiLLMClient(api_key="test-key")
+    mock_genai_client = MagicMock()
+
+    rate_limit_error = Exception(
+        "Error code: 429 - too_many_requests. Please retry in 0.1s."
+    )
+
+    mock_genai_client.interactions.create.side_effect = rate_limit_error
+    client._client = mock_genai_client
+    client.max_retries = 2
+
+    async def fake_sleep(delay):
+        pass
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+
+    with pytest.raises(Exception, match="429"):
+        await client.generate(
+            messages=[LLMMessage(role="user", content="Hello")],
+        )
+
+    # Initial attempt + 2 retries
+    assert mock_genai_client.interactions.create.call_count == 3
+
+@pytest.mark.asyncio
+async def test_gemini_structured_retries_on_429_and_succeeds(monkeypatch):
+    """Gemini structured generation should retry 429 errors and then succeed."""
+    client = GeminiLLMClient(api_key="test-key")
+    mock_genai_client = MagicMock()
+
+    mock_interaction = MagicMock()
+    mock_interaction.output_text = (
+        '{"objective": "Test objective", '
+        '"architecture_overview": "Test architecture", '
+        '"steps": []}'
+    )
+
+    rate_limit_error = Exception(
+        "Error code: 429 - too_many_requests. Please retry in 0.1s."
+    )
+
+    mock_genai_client.interactions.create.side_effect = [
+        rate_limit_error,
+        mock_interaction,
+    ]
+
+    client._client = mock_genai_client
+    client.max_retries = 2
+
+    sleep_mock = MagicMock()
+
+    async def fake_sleep(delay):
+        sleep_mock(delay)
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+
+    response = await client.generate_structured(
+        prompt="Generate an empty plan.",
+        response_schema=PlanGenerationOutput,
+    )
+
+    assert response is not None
+    assert mock_genai_client.interactions.create.call_count == 2
+    sleep_mock.assert_called_once_with(0.1)
+
+
+@pytest.mark.asyncio
+async def test_gemini_structured_429_retries_are_bounded(monkeypatch):
+    """Gemini structured generation should raise after max 429 retries."""
+    client = GeminiLLMClient(api_key="test-key")
+    mock_genai_client = MagicMock()
+
+    rate_limit_error = Exception(
+        "Error code: 429 - too_many_requests. Please retry in 0.1s."
+    )
+
+    mock_genai_client.interactions.create.side_effect = rate_limit_error
+    client._client = mock_genai_client
+    client.max_retries = 2
+
+    async def fake_sleep(delay):
+        pass
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+
+    with pytest.raises(Exception, match="429"):
+        await client.generate_structured(
+            prompt="Generate an empty plan.",
+            response_schema=PlanGenerationOutput,
+        )
+
+    # Initial attempt + 2 retries
+    assert mock_genai_client.interactions.create.call_count == 3
 
 
 @pytest.mark.asyncio
