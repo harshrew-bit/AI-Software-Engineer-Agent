@@ -539,7 +539,7 @@ async def commit_node(state: GraphState, context: WorkflowContext) -> GraphState
 
 # --- Node 8: Pull Request ---
 async def pull_request_node(state: GraphState, context: WorkflowContext) -> GraphState:
-    """Optionally generate GitHub Pull Request for the committed changes."""
+    """Push committed working branch and generate GitHub Pull Request."""
     task_id = state["task_id"]
     logger.info(f"[{task_id}] Running Pull Request Node")
     from app.github.client import GitHubManager
@@ -548,6 +548,21 @@ async def pull_request_node(state: GraphState, context: WorkflowContext) -> Grap
     repo_url = state.get("repository_url", "")
     commit_sha = state.get("commit_sha", "")
     review_summary = state.get("review_summary", "")
+    working_branch = state.get("working_branch") or f"agent-fix/{task_id}"
+    base_branch = state.get("base_branch", "main")
+
+    workspace_path = Path(state["workspace_path"])
+    git_manager = GitWorkspaceManager(task_id=task_id, workspace_path=workspace_path)
+
+    # 1. Push working branch to remote repository before PR creation
+    is_dry_run = not bool(context.settings.github_token)
+    if not is_dry_run:
+        logger.info(f"[{task_id}] Pushing working branch '{working_branch}' to remote origin...")
+        try:
+            git_manager.push(branch_name=working_branch, token=context.settings.github_token)
+        except Exception as push_err:
+            logger.error(f"[{task_id}] Failed to push branch '{working_branch}' to remote origin: {push_err}")
+            raise
 
     pr_title = state.get("commit_message") or f"feat: {state['user_instruction']}"
     pr_body = (
@@ -564,9 +579,9 @@ async def pull_request_node(state: GraphState, context: WorkflowContext) -> Grap
             repository_url=repo_url,
             title=pr_title,
             body=pr_body,
-            head_branch=state.get("working_branch", "agent-fix"),
-            base_branch=state.get("base_branch", "main"),
-            dry_run=not bool(context.settings.github_token),
+            head_branch=working_branch,
+            base_branch=base_branch,
+            dry_run=is_dry_run,
         )
         if not pr_result.get("is_dry_run"):
             pr_url = pr_result.get("html_url")
