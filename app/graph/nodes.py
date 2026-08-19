@@ -118,6 +118,13 @@ async def planning_node(state: GraphState, context: WorkflowContext) -> GraphSta
     task_id = state["task_id"]
     logger.info(f"[{task_id}] Running Planning Node")
 
+    if state.get("plan"):
+        logger.info(f"[{task_id}] Reusing existing plan from state.")
+        return {
+            **state,
+            "current_phase": WorkflowPhase.PLANNING.value,
+        }
+
     await global_event_bus.publish(
         task_id,
         TaskEvent(

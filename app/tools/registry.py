@@ -47,6 +47,7 @@ class ToolRegistry:
         tool_name: str,
         arguments: Dict[str, Any] | BaseModel,
         context: ToolExecutionContext,
+        bypass_approval: bool = False,
     ) -> ToolResult:
         """Execute a tool with parameter validation, security checks, and database audit logging."""
         tool = self.get_tool(tool_name)
@@ -62,7 +63,7 @@ class ToolRegistry:
         raw_args = arguments if isinstance(arguments, dict) else arguments.model_dump()
 
         # Check if the tool is dangerous and requires approval
-        if tool.is_dangerous and context.settings.require_human_approval_for_destructive_actions:
+        if not bypass_approval and tool.is_dangerous and context.settings.require_human_approval_for_destructive_actions:
             logger.warning(
                 f"Action '{tool_name}' marked as dangerous. Creating approval request for task '{context.task_id}'."
             )
@@ -84,6 +85,8 @@ class ToolRegistry:
 
         # Run tool
         result = await tool.execute(arguments, context)
+        if bypass_approval:
+            result.approval_status = ApprovalStatus.APPROVED
 
         # Audit log in database
         if context.repository:

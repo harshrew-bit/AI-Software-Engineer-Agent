@@ -16,6 +16,7 @@ from app.llm.base import BaseLLMClient
 from app.llm.factory import get_llm_client
 from app.models.enums import ApprovalStatus, TaskStatus, WorkflowPhase
 from app.models.state import AgentPlan, PendingApproval, TestExecutionSummary, ToolExecutionRecord
+from app.sandbox.factory import get_sandbox
 from app.models.task import (
     CreateTaskRequest,
     TaskDetailResponse,
@@ -25,6 +26,7 @@ from app.models.task import (
 from app.repository.git_manager import GitWorkspaceManager
 from app.services.event_bus import global_event_bus
 from app.services.workspace_service import WorkspaceService
+from app.tools.base import ToolExecutionContext
 from app.tools.registry import create_default_tool_registry
 
 logger = logging.getLogger(__name__)
@@ -100,42 +102,57 @@ class TaskManagerService:
         base_branch: str,
         working_branch: str,
         max_retries: int,
+        is_resumption: bool = False,
+        initial_graph_state: Optional[GraphState] = None,
     ) -> None:
         """Background worker that runs the LangGraph state machine and broadcasts progress."""
         session_factory = get_session_factory()
         git_manager = GitWorkspaceManager(task_id=task_id, workspace_path=Path(workspace_path))
 
         try:
-            # 1. Initialize Git Workspace
-            await global_event_bus.publish(
-                task_id,
-                TaskEvent(
-                    task_id=task_id,
-                    event_type="workspace_init",
-                    phase=WorkflowPhase.INITIALIZED,
-                    message=f"Initializing workspace for {repository_url}...",
-                ),
-            )
+            if not is_resumption:
+                # 1. Initialize Git Workspace
+                await global_event_bus.publish(
+                    task_id,
+                    TaskEvent(
+                        task_id=task_id,
+                        event_type="workspace_init",
+                        phase=WorkflowPhase.INITIALIZED,
+                        message=f"Initializing workspace for {repository_url}...",
+                    ),
+                )
 
-            try:
-                git_manager.initialize_workspace(
-                    repository_url=repository_url,
-                    base_branch=base_branch,
-                    working_branch=working_branch,
+                try:
+                    git_manager.initialize_workspace(
+                        repository_url=repository_url,
+                        base_branch=base_branch,
+                        working_branch=working_branch,
+                    )
+                except Exception as clone_err:
+                    logger.error(
+                        f"Failed to initialize repository '{repository_url}': {clone_err}",
+                        exc_info=True,
+                    )
+                    raise
+            else:
+                # Resumed workflow event
+                await global_event_bus.publish(
+                    task_id,
+                    TaskEvent(
+                        task_id=task_id,
+                        event_type="workflow_resumed",
+                        phase=WorkflowPhase.CODING,
+                        message=f"Resuming workflow for task {task_id}...",
+                    ),
                 )
-            except Exception as clone_err:
-                logger.error(
-                    f"Failed to initialize repository '{repository_url}': {clone_err}",
-                    exc_info=True,
-                )
-                raise
 
             # 2. Update DB to RUNNING and build Graph with DB repository
             async with session_factory() as session:
                 repo = TaskRepository(session)
+                current_phase = WorkflowPhase.CODING if is_resumption else WorkflowPhase.REPOSITORY_ANALYSIS
                 await repo.update_task_phase(
                     task_id=task_id,
-                    phase=WorkflowPhase.REPOSITORY_ANALYSIS,
+                    phase=current_phase,
                     status=TaskStatus.RUNNING,
                 )
 
@@ -147,16 +164,19 @@ class TaskManagerService:
                     repository=repo,
                 )
 
-                initial_state: GraphState = {
-                    "task_id": task_id,
-                    "repository_url": repository_url,
-                    "base_branch": base_branch,
-                    "working_branch": working_branch,
-                    "workspace_path": workspace_path,
-                    "user_instruction": user_instruction,
-                    "max_retries": max_retries,
-                    "retry_count": 0,
-                }
+                if initial_graph_state:
+                    initial_state: GraphState = initial_graph_state
+                else:
+                    initial_state: GraphState = {
+                        "task_id": task_id,
+                        "repository_url": repository_url,
+                        "base_branch": base_branch,
+                        "working_branch": working_branch,
+                        "workspace_path": workspace_path,
+                        "user_instruction": user_instruction,
+                        "max_retries": max_retries,
+                        "retry_count": 0,
+                    }
 
                 final_state = await app.ainvoke(initial_state)
 
@@ -369,26 +389,188 @@ class TaskManagerService:
         feedback: Optional[str],
         session: AsyncSession,
     ) -> bool:
-        """Resolve a human-in-the-loop approval checkpoint."""
+        """Resolve a human-in-the-loop approval checkpoint and resume workflow."""
+        # 1. Prevent duplicate concurrent executions
+        active_bg = self._active_tasks.get(task_id)
+        if active_bg and not active_bg.done():
+            logger.warning(f"Task '{task_id}' already has an active execution in progress.")
+            return False
+
         repo = TaskRepository(session)
-        result = await repo.resolve_approval_request(
+        task = await repo.get_task(task_id, include_relations=True)
+        if not task:
+            logger.warning(f"Task '{task_id}' not found for approval resolution.")
+            return False
+
+        if task.status != TaskStatus.PAUSED_FOR_APPROVAL.value:
+            logger.warning(
+                f"Task '{task_id}' is in status '{task.status}', cannot resolve approval unless '{TaskStatus.PAUSED_FOR_APPROVAL.value}'."
+            )
+            return False
+
+        # 2. Resolve the approval request record in the database
+        approval = await repo.resolve_approval_request(
             approval_id=approval_id,
             approved=approved,
             reviewer_feedback=feedback,
         )
-        if result:
+        if not approval:
+            logger.warning(f"Approval request '{approval_id}' not found for task '{task_id}'.")
+            return False
+
+        # 3. Publish approval_resolved event
+        await global_event_bus.publish(
+            task_id,
+            TaskEvent(
+                task_id=task_id,
+                event_type="approval_resolved",
+                phase=WorkflowPhase.CODING,
+                message=f"Human approval resolved: {'APPROVED' if approved else 'REJECTED'}",
+                data={"approval_id": approval_id, "approved": approved, "feedback": feedback},
+            ),
+        )
+
+        # 4. Reconstruct tool history & modified files from DB
+        tool_history: List[Dict[str, Any]] = []
+        for tc in task.tool_calls or []:
+            tool_history.append({
+                "tool_name": tc.tool_name,
+                "call_id": tc.id,
+                "success": (tc.error is None or tc.error == ""),
+                "output": tc.output_result,
+                "error": tc.error,
+                "requires_approval": tc.requires_approval,
+                "approval_status": tc.approval_status,
+                "execution_time_ms": tc.execution_time_ms,
+            })
+
+        modified_files_list = json.loads(task.modified_files_json) if task.modified_files_json else []
+        modified_files_set = set(modified_files_list)
+        plan_dict = json.loads(task.plan_json) if task.plan_json else None
+        test_results = json.loads(task.test_results_json) if task.test_results_json else []
+
+        workspace_path = Path(task.workspace_path)
+        git_manager = GitWorkspaceManager(task_id=task_id, workspace_path=workspace_path)
+        sandbox = get_sandbox(workspace_path=workspace_path)
+        tool_registry = create_default_tool_registry()
+        tool_context = ToolExecutionContext(
+            task_id=task_id,
+            workspace_path=workspace_path,
+            git_manager=git_manager,
+            sandbox=sandbox,
+            settings=get_settings(),
+            repository=repo,
+        )
+
+        # 5. Handle action execution (if approved) or rejection note (if rejected)
+        raw_payload = {}
+        if approval.action_payload:
+            try:
+                raw_payload = json.loads(approval.action_payload) if isinstance(approval.action_payload, str) else approval.action_payload
+            except Exception:
+                raw_payload = {}
+
+        if approved:
+            # Execute the approved dangerous tool with bypass_approval=True
+            logger.info(f"Executing approved tool '{approval.tool_name}' for task '{task_id}'")
+            tool_res = await tool_registry.dispatch(
+                tool_name=approval.tool_name,
+                arguments=raw_payload,
+                context=tool_context,
+                bypass_approval=True,
+            )
+            tool_history.append(tool_res.model_dump())
+
+            if approval.tool_name in ("create_file", "modify_file", "delete_file"):
+                target_f = raw_payload.get("file_path")
+                if target_f:
+                    modified_files_set.add(target_f)
+
             await global_event_bus.publish(
                 task_id,
                 TaskEvent(
                     task_id=task_id,
-                    event_type="approval_resolved",
+                    event_type="tool_execution",
                     phase=WorkflowPhase.CODING,
-                    message=f"Human approval resolved: {'APPROVED' if approved else 'REJECTED'}",
-                    data={"approval_id": approval_id, "approved": approved, "feedback": feedback},
+                    message=f"Executed approved {approval.tool_name} (success={tool_res.success})",
+                    data={
+                        "tool_name": approval.tool_name,
+                        "success": tool_res.success,
+                        "requires_approval": False,
+                        "execution_time_ms": tool_res.execution_time_ms,
+                    },
                 ),
             )
-            return True
-        return False
+        else:
+            # Rejection handling
+            reject_msg = f"Action rejected by reviewer: {feedback or 'No feedback provided'}"
+            tool_history.append({
+                "tool_name": approval.tool_name,
+                "call_id": f"rejected_{approval_id}",
+                "success": False,
+                "output": None,
+                "error": reject_msg,
+                "requires_approval": False,
+                "approval_status": "rejected",
+                "execution_time_ms": 0.0,
+            })
+            await global_event_bus.publish(
+                task_id,
+                TaskEvent(
+                    task_id=task_id,
+                    event_type="tool_execution",
+                    phase=WorkflowPhase.CODING,
+                    message=f"Tool execution rejected: {approval.tool_name}",
+                    data={
+                        "tool_name": approval.tool_name,
+                        "success": False,
+                        "error": reject_msg,
+                    },
+                ),
+            )
+
+        # Inspect git status for modified files
+        try:
+            status = git_manager.get_status()
+            for f in status.get("modified", []) + status.get("untracked", []):
+                modified_files_set.add(f)
+        except Exception:
+            pass
+
+        # 6. Build initial state for resumed workflow
+        initial_graph_state: GraphState = {
+            "task_id": task.id,
+            "repository_url": task.repository_url,
+            "base_branch": task.base_branch,
+            "working_branch": task.working_branch,
+            "workspace_path": task.workspace_path,
+            "user_instruction": task.user_instruction,
+            "current_phase": WorkflowPhase.CODING.value,
+            "plan": plan_dict,
+            "tool_history": tool_history,
+            "modified_files": sorted(list(modified_files_set)),
+            "test_results": test_results,
+            "max_retries": task.max_retries,
+            "retry_count": task.retry_count,
+            "pending_approval": None,
+        }
+
+        # 7. Launch resumed workflow in the background
+        bg_task = asyncio.create_task(
+            self._execute_workflow(
+                task_id=task.id,
+                repository_url=task.repository_url,
+                user_instruction=task.user_instruction,
+                workspace_path=task.workspace_path,
+                base_branch=task.base_branch,
+                working_branch=task.working_branch,
+                max_retries=task.max_retries,
+                is_resumption=True,
+                initial_graph_state=initial_graph_state,
+            )
+        )
+        self._active_tasks[task_id] = bg_task
+        return True
 
     async def cancel_task(self, task_id: str, session: AsyncSession) -> bool:
         """Cancel an active task."""

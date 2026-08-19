@@ -4,7 +4,7 @@ import logging
 from typing import Any, Optional
 from langgraph.graph import END, START, StateGraph
 
-from app.graph.edges import should_continue_testing
+from app.graph.edges import should_continue_coding, should_continue_testing
 from app.graph.nodes import (
     WorkflowContext,
     coding_node,
@@ -75,9 +75,18 @@ def build_agent_graph(
     workflow.add_edge(START, "repository_analysis")
     workflow.add_edge("repository_analysis", "planning")
     workflow.add_edge("planning", "coding")
-    workflow.add_edge("coding", "testing")
 
-    # 3. Add Conditional Routing Edge from Testing
+    # 3. Add Conditional Routing Edge from Coding (for human approval pauses)
+    workflow.add_conditional_edges(
+        "coding",
+        should_continue_coding,
+        {
+            "testing": "testing",
+            END: END,
+        },
+    )
+
+    # 4. Add Conditional Routing Edge from Testing
     workflow.add_conditional_edges(
         "testing",
         should_continue_testing,

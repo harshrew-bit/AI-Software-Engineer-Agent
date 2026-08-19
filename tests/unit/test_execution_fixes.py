@@ -798,3 +798,445 @@ async def test_lifespan_recovers_orphaned_tasks(async_db_session, monkeypatch):
     assert task.status == TaskStatus.FAILED.value
     assert task.current_phase == WorkflowPhase.FINISHED.value
     assert "interrupted" in task.error_message.lower()
+
+
+# --- 6. Human-In-The-Loop Approval and Workflow Resumption Tests ---
+
+@pytest.mark.asyncio
+async def test_approval_required_task_enters_paused_for_approval(tmp_path, async_db_session, monkeypatch):
+    """Test A: When coding encounters a dangerous tool requiring approval, task pauses in PAUSED_FOR_APPROVAL."""
+    import git
+
+    remote_dir = tmp_path / "remote_appr.git"
+    git.Repo.init(str(remote_dir), bare=True)
+
+    seed_dir = tmp_path / "seed_appr"
+    seed_repo = git.Repo.init(str(seed_dir))
+    (seed_dir / "old_file.py").write_text("# Old file\n")
+    (seed_dir / "test_main.py").write_text("def test_ok(): pass\n")
+    seed_repo.git.add(A=True)
+    seed_repo.index.commit("Initial commit")
+    seed_repo.create_head("main")
+    seed_repo.create_remote("origin", str(remote_dir))
+    seed_repo.git.push("origin", "main:main")
+
+    ws = tmp_path / "workspace_appr_pause"
+
+    repo = TaskRepository(async_db_session)
+    await repo.create_task(
+        task_id="task-appr-pause",
+        repository_url=str(remote_dir),
+        user_instruction="Delete old_file.py",
+        workspace_path=str(ws),
+    )
+
+    class MockSessionFactory:
+        def __call__(self):
+            return self
+
+        async def __aenter__(self):
+            return async_db_session
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    monkeypatch.setattr("app.services.task_service.get_session_factory", lambda: MockSessionFactory())
+
+    mock_llm = MockLLMClient()
+    mock_llm.set_structured_response(
+        "PlanGenerationOutput",
+        PlanGenerationOutput(
+            objective="Delete obsolete file",
+            architecture_overview="Delete old_file.py",
+            steps=[PlanStep(step_id=1, title="Delete", description="Delete old_file.py")],
+        ),
+    )
+    # Coder requests dangerous delete_file tool
+    mock_llm.add_canned_response(
+        LLMResponse(
+            content="Deleting file",
+            tool_calls=[
+                ToolCallRequest(
+                    id="call_del_1",
+                    name="delete_file",
+                    arguments={"file_path": "old_file.py"},
+                )
+            ],
+        )
+    )
+
+    task_svc = TaskManagerService(llm_client=mock_llm)
+    await task_svc._execute_workflow(
+        task_id="task-appr-pause",
+        repository_url=str(remote_dir),
+        user_instruction="Delete old_file.py",
+        workspace_path=str(ws),
+        base_branch="main",
+        working_branch="agent-fix/task-appr-pause",
+        max_retries=1,
+    )
+
+    db_task = await repo.get_task("task-appr-pause", include_relations=True)
+    assert db_task is not None
+    assert db_task.status == TaskStatus.PAUSED_FOR_APPROVAL.value
+    assert db_task.current_phase == WorkflowPhase.CODING.value
+    assert len(db_task.approval_requests) == 1
+    assert db_task.approval_requests[0].tool_name == "delete_file"
+    assert db_task.approval_requests[0].status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_approving_request_resumes_workflow_to_completion(tmp_path, async_db_session, monkeypatch):
+    """Test B: Approving the request executes dangerous tool, resumes workflow, and completes commit & PR."""
+    import git
+
+    remote_dir = tmp_path / "remote_appr_resume.git"
+    git.Repo.init(str(remote_dir), bare=True)
+
+    seed_dir = tmp_path / "seed_appr_resume"
+    seed_repo = git.Repo.init(str(seed_dir))
+    (seed_dir / "to_delete.py").write_text("# delete me\n")
+    (seed_dir / "test_main.py").write_text("def test_ok(): pass\n")
+    seed_repo.git.add(A=True)
+    seed_repo.index.commit("Initial commit")
+    seed_repo.create_head("main")
+    seed_repo.create_remote("origin", str(remote_dir))
+    seed_repo.git.push("origin", "main:main")
+
+    ws = tmp_path / "workspace_appr_resume"
+
+    repo = TaskRepository(async_db_session)
+    await repo.create_task(
+        task_id="task-appr-resume",
+        repository_url=str(remote_dir),
+        user_instruction="Delete to_delete.py",
+        workspace_path=str(ws),
+    )
+
+    class MockSessionFactory:
+        def __call__(self):
+            return self
+
+        async def __aenter__(self):
+            return async_db_session
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    monkeypatch.setattr("app.services.task_service.get_session_factory", lambda: MockSessionFactory())
+
+    mock_llm = MockLLMClient()
+    mock_llm.set_structured_response(
+        "PlanGenerationOutput",
+        PlanGenerationOutput(
+            objective="Delete obsolete file",
+            architecture_overview="Delete to_delete.py",
+            steps=[PlanStep(step_id=1, title="Delete", description="Delete to_delete.py")],
+        ),
+    )
+    mock_llm.set_structured_response(
+        "ReviewSummaryOutput",
+        ReviewSummaryOutput(
+            summary="Deleted obsolete file",
+            commit_message="chore: remove obsolete file",
+            is_ready_for_commit=True,
+        ),
+    )
+    # First turn requests delete_file
+    mock_llm.add_canned_response(
+        LLMResponse(
+            content="Deleting file",
+            tool_calls=[
+                ToolCallRequest(
+                    id="call_del_2",
+                    name="delete_file",
+                    arguments={"file_path": "to_delete.py"},
+                )
+            ],
+        )
+    )
+    # Resumed turn: no further tool calls needed
+    mock_llm.add_canned_response(LLMResponse(content="File deleted successfully.", tool_calls=[]))
+
+    task_svc = TaskManagerService(llm_client=mock_llm)
+
+    # 1. Initial run -> Pauses for approval
+    await task_svc._execute_workflow(
+        task_id="task-appr-resume",
+        repository_url=str(remote_dir),
+        user_instruction="Delete to_delete.py",
+        workspace_path=str(ws),
+        base_branch="main",
+        working_branch="agent-fix/task-appr-resume",
+        max_retries=1,
+    )
+
+    db_task = await repo.get_task("task-appr-resume", include_relations=True)
+    assert db_task.status == TaskStatus.PAUSED_FOR_APPROVAL.value
+    approval_id = db_task.approval_requests[0].id
+
+    # 2. Resolve approval with approved=True
+    resolved = await task_svc.resolve_approval(
+        task_id="task-appr-resume",
+        approval_id=approval_id,
+        approved=True,
+        feedback="Approved for deletion",
+        session=async_db_session,
+    )
+    assert resolved is True
+
+    # Wait for the background resumption task to complete
+    bg_task = task_svc._active_tasks.get("task-appr-resume")
+    if bg_task:
+        await bg_task
+
+    # Verify task in DB completed successfully and file was deleted
+    resumed_task = await repo.get_task("task-appr-resume", include_relations=True)
+    assert resumed_task.status == TaskStatus.COMPLETED.value
+    assert resumed_task.current_phase == WorkflowPhase.FINISHED.value
+    assert resumed_task.commit_sha is not None
+    assert not (ws / "to_delete.py").exists()
+
+
+@pytest.mark.asyncio
+async def test_rejecting_approval_resumes_and_terminates_cleanly(tmp_path, async_db_session, monkeypatch):
+    """Test C: Rejecting approval records rejection, does not delete file, and terminates cleanly."""
+    import git
+
+    remote_dir = tmp_path / "remote_appr_reject.git"
+    git.Repo.init(str(remote_dir), bare=True)
+
+    seed_dir = tmp_path / "seed_appr_reject"
+    seed_repo = git.Repo.init(str(seed_dir))
+    (seed_dir / "keep_me.py").write_text("# Must keep\n")
+    (seed_dir / "test_main.py").write_text("def test_ok(): pass\n")
+    seed_repo.git.add(A=True)
+    seed_repo.index.commit("Initial commit")
+    seed_repo.create_head("main")
+    seed_repo.create_remote("origin", str(remote_dir))
+    seed_repo.git.push("origin", "main:main")
+
+    ws = tmp_path / "workspace_appr_reject"
+
+    repo = TaskRepository(async_db_session)
+    await repo.create_task(
+        task_id="task-appr-reject",
+        repository_url=str(remote_dir),
+        user_instruction="Do not delete keep_me.py",
+        workspace_path=str(ws),
+    )
+
+    class MockSessionFactory:
+        def __call__(self):
+            return self
+
+        async def __aenter__(self):
+            return async_db_session
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    monkeypatch.setattr("app.services.task_service.get_session_factory", lambda: MockSessionFactory())
+
+    mock_llm = MockLLMClient()
+    mock_llm.set_structured_response(
+        "PlanGenerationOutput",
+        PlanGenerationOutput(
+            objective="Do task",
+            architecture_overview="Do task",
+            steps=[PlanStep(step_id=1, title="Task", description="Do task")],
+        ),
+    )
+    # First turn requests delete_file
+    mock_llm.add_canned_response(
+        LLMResponse(
+            content="Deleting keep_me",
+            tool_calls=[
+                ToolCallRequest(
+                    id="call_del_3",
+                    name="delete_file",
+                    arguments={"file_path": "keep_me.py"},
+                )
+            ],
+        )
+    )
+    # Resumed turn acknowledges rejection
+    mock_llm.add_canned_response(LLMResponse(content="Action was rejected, stopping.", tool_calls=[]))
+
+    task_svc = TaskManagerService(llm_client=mock_llm)
+
+    # 1. Initial run -> Pauses for approval
+    await task_svc._execute_workflow(
+        task_id="task-appr-reject",
+        repository_url=str(remote_dir),
+        user_instruction="Do not delete keep_me.py",
+        workspace_path=str(ws),
+        base_branch="main",
+        working_branch="agent-fix/task-appr-reject",
+        max_retries=1,
+    )
+
+    db_task = await repo.get_task("task-appr-reject", include_relations=True)
+    assert db_task.status == TaskStatus.PAUSED_FOR_APPROVAL.value
+    approval_id = db_task.approval_requests[0].id
+
+    # 2. Resolve approval with approved=False
+    resolved = await task_svc.resolve_approval(
+        task_id="task-appr-reject",
+        approval_id=approval_id,
+        approved=False,
+        feedback="Do not delete this critical file",
+        session=async_db_session,
+    )
+    assert resolved is True
+
+    # Wait for resumption background worker
+    bg_task = task_svc._active_tasks.get("task-appr-reject")
+    if bg_task:
+        await bg_task
+
+    # Verify task is not stuck in PAUSED_FOR_APPROVAL and file still exists
+    resumed_task = await repo.get_task("task-appr-reject", include_relations=True)
+    assert resumed_task.status in (TaskStatus.FAILED.value, TaskStatus.COMPLETED.value)
+    assert (ws / "keep_me.py").exists()
+
+
+@pytest.mark.asyncio
+async def test_resumed_workflow_prevents_duplicate_concurrent_executions(async_db_session):
+    """Test D: Attempting to resolve approval when task is already executing returns False."""
+    repo = TaskRepository(async_db_session)
+    await repo.create_task(
+        task_id="task-concurrent-check",
+        repository_url="https://github.com/example/concurrent",
+        user_instruction="Test concurrent",
+        workspace_path="/tmp/concurrent",
+    )
+    await repo.update_task_phase(
+        task_id="task-concurrent-check",
+        phase=WorkflowPhase.CODING,
+        status=TaskStatus.RUNNING,
+    )
+
+    task_svc = TaskManagerService()
+    # Fake a running background task
+    dummy_task = asyncio.create_task(asyncio.sleep(10))
+    task_svc._active_tasks["task-concurrent-check"] = dummy_task
+
+    resolved = await task_svc.resolve_approval(
+        task_id="task-concurrent-check",
+        approval_id="appr_dummy",
+        approved=True,
+        feedback=None,
+        session=async_db_session,
+    )
+    assert resolved is False
+
+    dummy_task.cancel()
+
+
+@pytest.mark.asyncio
+async def test_resumed_workflow_failure_marks_task_failed(tmp_path, async_db_session, monkeypatch):
+    """Test E: If resumed execution encounters an error, task becomes FAILED rather than stuck in RUNNING."""
+    import git
+
+    remote_dir = tmp_path / "remote_appr_fail.git"
+    git.Repo.init(str(remote_dir), bare=True)
+
+    seed_dir = tmp_path / "seed_appr_fail"
+    seed_repo = git.Repo.init(str(seed_dir))
+    (seed_dir / "target.py").write_text("# Target\n")
+    seed_repo.git.add(A=True)
+    seed_repo.index.commit("Initial commit")
+    seed_repo.create_head("main")
+    seed_repo.create_remote("origin", str(remote_dir))
+    seed_repo.git.push("origin", "main:main")
+
+    ws = tmp_path / "workspace_appr_fail"
+
+    repo = TaskRepository(async_db_session)
+    await repo.create_task(
+        task_id="task-appr-fail",
+        repository_url=str(remote_dir),
+        user_instruction="Modify target.py",
+        workspace_path=str(ws),
+    )
+
+    class MockSessionFactory:
+        def __call__(self):
+            return self
+
+        async def __aenter__(self):
+            return async_db_session
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    monkeypatch.setattr("app.services.task_service.get_session_factory", lambda: MockSessionFactory())
+
+    mock_llm = MockLLMClient()
+    mock_llm.set_structured_response(
+        "PlanGenerationOutput",
+        PlanGenerationOutput(
+            objective="Delete target",
+            architecture_overview="Delete",
+            steps=[PlanStep(step_id=1, title="Delete", description="Delete target.py")],
+        ),
+    )
+    # First turn requests delete_file
+    mock_llm.add_canned_response(
+        LLMResponse(
+            content="Deleting target",
+            tool_calls=[
+                ToolCallRequest(
+                    id="call_del_4",
+                    name="delete_file",
+                    arguments={"file_path": "target.py"},
+                )
+            ],
+        )
+    )
+
+    task_svc = TaskManagerService(llm_client=mock_llm)
+
+    # 1. Initial run -> Pauses for approval
+    await task_svc._execute_workflow(
+        task_id="task-appr-fail",
+        repository_url=str(remote_dir),
+        user_instruction="Modify target.py",
+        workspace_path=str(ws),
+        base_branch="main",
+        working_branch="agent-fix/task-appr-fail",
+        max_retries=1,
+    )
+
+    db_task = await repo.get_task("task-appr-fail", include_relations=True)
+    assert db_task.status == TaskStatus.PAUSED_FOR_APPROVAL.value
+    approval_id = db_task.approval_requests[0].id
+
+    # Now make the LLM raise a fatal error during resumed execution
+    class ErrorLLM(MockLLMClient):
+        async def generate(self, *args, **kwargs):
+            raise RuntimeError("Fatal simulation error during resumed coding")
+
+    task_svc.llm_client = ErrorLLM()
+
+    # 2. Resolve approval
+    resolved = await task_svc.resolve_approval(
+        task_id="task-appr-fail",
+        approval_id=approval_id,
+        approved=True,
+        feedback=None,
+        session=async_db_session,
+    )
+    assert resolved is True
+
+    # Wait for background resumption worker
+    bg_task = task_svc._active_tasks.get("task-appr-fail")
+    if bg_task:
+        await bg_task
+
+    # Verify task becomes FAILED with error message
+    resumed_task = await repo.get_task("task-appr-fail")
+    assert resumed_task.status == TaskStatus.FAILED.value
+    assert resumed_task.current_phase == WorkflowPhase.FINISHED.value
+    assert "Fatal simulation error" in resumed_task.error_message

@@ -43,6 +43,7 @@ class GraphState(TypedDict, total=False):
     retry_count: int
     max_retries: int
     debug_guidance: Optional[str]
+    pending_approval: Optional[Dict[str, Any]]
 
     # Review & Final Deliverables
     review_summary: Optional[str]

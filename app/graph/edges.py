@@ -6,6 +6,17 @@ from app.graph.state import GraphState
 logger = logging.getLogger(__name__)
 
 
+def should_continue_coding(
+    state: GraphState,
+) -> str:
+    """Evaluate whether coding paused for human approval or should proceed to testing."""
+    task_id = state.get("task_id", "unknown")
+    if state.get("pending_approval"):
+        logger.info(f"[{task_id}] Pending human approval detected. Pausing graph execution at 'coding'.")
+        return END
+    return "testing"
+
+
 def should_continue_testing(
     state: GraphState,
 ) -> str:
