@@ -245,7 +245,7 @@ class GeminiLLMClient(BaseLLMClient):
         system_instruction: Optional[str] = None,
         temperature: Optional[float] = None,
     ) -> T:
-        """Generate structured Pydantic output using schema constraint."""
+        """Generate structured Pydantic output with bounded retry handling."""
         client = self._get_client()
 
         json_schema_prompt = (
@@ -258,16 +258,15 @@ class GeminiLLMClient(BaseLLMClient):
             "model": self.model_name,
             "input": json_schema_prompt,
         }
+
         if system_instruction:
             kwargs["system_instruction"] = system_instruction
 
-                # Call Gemini Interactions API with bounded 429 retry handling
-        interaction = None
+        last_validation_error: Optional[Exception] = None
 
         for attempt in range(self.max_retries + 1):
             try:
                 interaction = client.interactions.create(**kwargs)
-                break
 
             except Exception as e:
                 if not self._is_rate_limit_error(e):
@@ -293,17 +292,48 @@ class GeminiLLMClient(BaseLLMClient):
                 )
 
                 await asyncio.sleep(delay)
+                continue
 
-        raw_text = getattr(interaction, "output_text", "")
+            raw_text = getattr(interaction, "output_text", "")
 
-        # Clean JSON markdown fences if present
-        cleaned_text = raw_text.strip()
-        if cleaned_text.startswith("```json"):
-            cleaned_text = cleaned_text[7:]
-        elif cleaned_text.startswith("```"):
-            cleaned_text = cleaned_text[3:]
-        if cleaned_text.endswith("```"):
-            cleaned_text = cleaned_text[:-3]
-        cleaned_text = cleaned_text.strip()
+            # Clean JSON markdown fences if present
+            cleaned_text = raw_text.strip()
 
-        return response_schema.model_validate_json(cleaned_text)
+            if cleaned_text.startswith("```json"):
+                cleaned_text = cleaned_text[7:]
+            elif cleaned_text.startswith("```"):
+                cleaned_text = cleaned_text[3:]
+
+            if cleaned_text.endswith("```"):
+                cleaned_text = cleaned_text[:-3]
+
+            cleaned_text = cleaned_text.strip()
+
+            try:
+                return response_schema.model_validate_json(cleaned_text)
+
+            except Exception as e:
+                last_validation_error = e
+
+                if attempt >= self.max_retries:
+                    logger.error(
+                        "Gemini structured output remained invalid after %d retries: %s",
+                        self.max_retries,
+                        e,
+                    )
+                    raise
+
+                logger.warning(
+                    "Gemini returned invalid structured output. "
+                    "Retry %d/%d.",
+                    attempt + 1,
+                    self.max_retries,
+                )
+
+                await asyncio.sleep(self.retry_delay_seconds)
+
+        # Defensive fallback; loop should always return or raise.
+        if last_validation_error:
+            raise last_validation_error
+
+        raise RuntimeError("Structured generation failed unexpectedly.")
