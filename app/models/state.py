@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.enums import ApprovalStatus, WorkflowPhase
 
@@ -48,8 +48,8 @@ class TestExecutionSummary(BaseModel):
     """Result of running tests in the sandbox."""
     __test__ = False  # Inform pytest this is a data schema, not a test suite
 
-    command: str
-    passed: bool
+    command: str = ""
+    passed: bool = False
     total_tests: int = 0
     failures: int = 0
     errors: int = 0
@@ -57,6 +57,58 @@ class TestExecutionSummary(BaseModel):
     stderr: str = ""
     exit_code: int = 0
     duration_seconds: float = 0.0
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            d = dict(data)
+            # If 'passed' not provided but 'is_success' is
+            if "passed" not in d and "is_success" in d:
+                d["passed"] = bool(d["is_success"])
+            # If nested 'result' dict is provided
+            if isinstance(d.get("result"), dict):
+                res = d["result"]
+                if not d.get("command") and "command" in res:
+                    d["command"] = res["command"]
+                if "passed" not in d:
+                    d["passed"] = res.get("passed", res.get("is_success", False))
+                if not d.get("stdout") and res.get("stdout"):
+                    d["stdout"] = res.get("stdout")
+                elif not d.get("stdout") and res.get("output"):
+                    d["stdout"] = res.get("output")
+                if not d.get("stderr") and res.get("stderr"):
+                    d["stderr"] = res.get("stderr")
+                if not d.get("exit_code") and "exit_code" in res:
+                    d["exit_code"] = res.get("exit_code")
+                if not d.get("total_tests") and "total_tests" in res:
+                    d["total_tests"] = int(res["total_tests"])
+                elif not d.get("total_tests") and "total" in res:
+                    d["total_tests"] = int(res["total"])
+                if not d.get("failures") and "failures" in res:
+                    d["failures"] = int(res["failures"])
+                elif not d.get("failures") and "failed" in res:
+                    d["failures"] = int(res["failed"])
+                if not d.get("errors") and "errors" in res:
+                    d["errors"] = int(res["errors"])
+                if not d.get("duration_seconds") and "duration_seconds" in res:
+                    d["duration_seconds"] = float(res["duration_seconds"])
+            # If 'output' is provided instead of stdout
+            if not d.get("stdout") and d.get("output"):
+                d["stdout"] = d["output"]
+            # If metadata contains metrics
+            if isinstance(d.get("metadata"), dict):
+                meta = d["metadata"]
+                if "passed" not in d and "is_success" in meta:
+                    d["passed"] = bool(meta["is_success"])
+                if not d.get("total_tests") and "total" in meta:
+                    d["total_tests"] = int(meta["total"])
+                if not d.get("failures") and "failed" in meta:
+                    d["failures"] = int(meta["failed"])
+                if not d.get("errors") and "errors" in meta:
+                    d["errors"] = int(meta["errors"])
+            return d
+        return data
 
 
 class PendingApproval(BaseModel):

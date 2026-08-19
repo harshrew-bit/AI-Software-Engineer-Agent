@@ -66,3 +66,79 @@ def test_create_task_request_validation():
     )
     assert req.base_branch == "main"
     assert req.max_retries == 3
+
+
+def test_test_execution_summary_normalization_success_and_failure():
+    """Verify TestExecutionSummary normalization from legacy, nested, and canonical dictionaries."""
+    # 1. Legacy format with is_success and metadata
+    raw_success = {
+        "command": "pytest -v",
+        "is_success": True,
+        "output": "1 passed in 0.1s",
+        "exit_code": 0,
+        "metadata": {
+            "passed": 1,
+            "failed": 0,
+            "errors": 0,
+            "total": 1,
+            "is_success": True,
+        },
+    }
+    summary_success = TestExecutionSummary.model_validate(raw_success)
+    assert summary_success.command == "pytest -v"
+    assert summary_success.passed is True
+    assert summary_success.total_tests == 1
+    assert summary_success.failures == 0
+    assert summary_success.exit_code == 0
+    assert "1 passed" in summary_success.stdout
+
+    # 2. Failed test result with failures count
+    raw_failed = {
+        "command": "pytest -v",
+        "is_success": False,
+        "output": "1 failed in 0.2s",
+        "exit_code": 1,
+        "metadata": {
+            "passed": 0,
+            "failed": 1,
+            "errors": 0,
+            "total": 1,
+            "is_success": False,
+        },
+    }
+    summary_failed = TestExecutionSummary.model_validate(raw_failed)
+    assert summary_failed.command == "pytest -v"
+    assert summary_failed.passed is False
+    assert summary_failed.failures == 1
+    assert summary_failed.exit_code == 1
+
+    # 3. Nested result dictionary format
+    raw_nested = {
+        "command": "pytest -v",
+        "result": {
+            "is_success": True,
+            "stdout": "All tests passed",
+            "exit_code": 0,
+        },
+    }
+    summary_nested = TestExecutionSummary.model_validate(raw_nested)
+    assert summary_nested.passed is True
+    assert summary_nested.stdout == "All tests passed"
+
+    # 4. Canonical format with passed boolean
+    raw_canonical = {
+        "command": "npm test",
+        "passed": True,
+        "total_tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "stdout": "PASS",
+        "stderr": "",
+        "exit_code": 0,
+        "duration_seconds": 1.5,
+    }
+    summary_canonical = TestExecutionSummary.model_validate(raw_canonical)
+    assert summary_canonical.command == "npm test"
+    assert summary_canonical.passed is True
+    assert summary_canonical.total_tests == 5
+    assert summary_canonical.duration_seconds == 1.5

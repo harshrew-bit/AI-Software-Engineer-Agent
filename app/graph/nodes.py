@@ -370,7 +370,10 @@ async def testing_node(state: GraphState, context: WorkflowContext) -> GraphStat
     test_results.append({
         "command": test_cmd,
         "is_success": test_passed,
+        "passed": test_passed,
         "output": test_res.output or test_res.error or "",
+        "stdout": test_res.output or "",
+        "stderr": test_res.error or "",
         "exit_code": test_res.exit_code,
         "metadata": test_res.metadata,
     })

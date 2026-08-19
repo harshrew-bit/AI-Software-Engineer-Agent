@@ -110,3 +110,77 @@ async def test_non_existent_task_returns_404():
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/api/v1/tasks/task_does_not_exist")
         assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_task_detail_with_stored_test_results():
+    """Verify GET /tasks/{task_id}/detail parses stored test_results_json without 500 ValidationError."""
+    import uuid
+    from app.database.session import get_session_factory
+    from app.database.repository import TaskRepository
+    from app.models.enums import TaskStatus, WorkflowPhase
+
+    test_task_id = f"task_detail_{uuid.uuid4().hex[:8]}"
+
+    session_factory = get_session_factory()
+    async with session_factory() as session:
+        repo = TaskRepository(session)
+        await repo.create_task(
+            task_id=test_task_id,
+            repository_url="https://github.com/example/test-detail",
+            user_instruction="Test detail serialization",
+            workspace_path="/tmp/test_detail",
+        )
+        # Store test results containing both successful and failed records in legacy structure
+        stored_results = [
+            {
+                "command": "pytest -v",
+                "is_success": True,
+                "output": "1 passed in 0.05s",
+                "exit_code": 0,
+                "metadata": {
+                    "passed": 1,
+                    "failed": 0,
+                    "errors": 0,
+                    "total": 1,
+                    "is_success": True,
+                },
+            },
+            {
+                "command": "pytest -v tests/test_extra.py",
+                "result": {
+                    "is_success": False,
+                    "stdout": "1 failed in 0.02s",
+                    "exit_code": 1,
+                    "total_tests": 1,
+                    "failures": 1,
+                },
+            },
+        ]
+        await repo.update_task_phase(
+            task_id=test_task_id,
+            phase=WorkflowPhase.FINISHED,
+            status=TaskStatus.COMPLETED,
+            test_results=stored_results,
+        )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get(f"/api/v1/tasks/{test_task_id}/detail")
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+        data = resp.json()
+        assert data["id"] == test_task_id
+        assert len(data["test_results"]) == 2
+
+        # Verify successful test record
+        test_1 = data["test_results"][0]
+        assert test_1["command"] == "pytest -v"
+        assert test_1["passed"] is True
+        assert test_1["total_tests"] == 1
+        assert test_1["failures"] == 0
+
+        # Verify failed test record
+        test_2 = data["test_results"][1]
+        assert test_2["command"] == "pytest -v tests/test_extra.py"
+        assert test_2["passed"] is False
+        assert test_2["failures"] == 1

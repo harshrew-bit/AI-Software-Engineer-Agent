@@ -322,16 +322,12 @@ class TaskManagerService:
 
         modified_files = json.loads(task.modified_files_json) if task.modified_files_json else []
         raw_tests = json.loads(task.test_results_json) if task.test_results_json else []
-        test_summaries = [
-            TestExecutionSummary(
-                command=t.get("command", ""),
-                is_success=t.get("is_success", False),
-                output=t.get("output", ""),
-                exit_code=t.get("exit_code"),
-                metadata=t.get("metadata", {}),
-            )
-            for t in raw_tests
-        ]
+        test_summaries = []
+        for t in raw_tests:
+            if isinstance(t, dict):
+                test_summaries.append(TestExecutionSummary.model_validate(t))
+            elif isinstance(t, TestExecutionSummary):
+                test_summaries.append(t)
 
         pending_approvals = [
             PendingApproval(
