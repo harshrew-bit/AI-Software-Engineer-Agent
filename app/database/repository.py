@@ -78,6 +78,17 @@ class TaskRepository:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
+    async def list_active_tasks(self) -> List[TaskModel]:
+        """Fetch all tasks currently in PENDING or RUNNING status."""
+        stmt = select(TaskModel).where(
+            TaskModel.status.in_([
+                TaskStatus.PENDING.value,
+                TaskStatus.RUNNING.value,
+            ])
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def update_task_phase(
         self,
         task_id: str,

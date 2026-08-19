@@ -73,7 +73,7 @@ cp .env.example .env
 ### 4. Start the Server
 
 ```bash
-.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app --reload-exclude "temp_workspaces/*"
 ```
 
 Interactive API documentation will be available at `http://localhost:8000/docs`.

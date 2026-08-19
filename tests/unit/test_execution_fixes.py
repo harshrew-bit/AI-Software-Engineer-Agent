@@ -648,3 +648,153 @@ def test_modify_file_tool_schema_resolves_pydantic_refs():
         "old_content",
         "new_content",
     ]
+
+
+def test_gemini_quota_exhaustion_detection():
+    """Verify GeminiLLMClient._is_rate_limit_error detects quota and resource exhausted errors."""
+    client = GeminiLLMClient(api_key="test-key")
+
+    # 1. Quota exceeded free tier string
+    err_quota = Exception(
+        "ResourceExhausted: Quota exceeded for metric: "
+        "generativelanguage.googleapis.com/generate_content_free_tier_requests"
+    )
+    assert client._is_rate_limit_error(err_quota) is True
+
+    # 2. 429 RESOURCE_EXHAUSTED string
+    err_429 = Exception("429 RESOURCE_EXHAUSTED. Please retry in 10s.")
+    assert client._is_rate_limit_error(err_429) is True
+
+    # 3. Exception object with status_code attribute
+    class MockStatusError(Exception):
+        status_code = 429
+
+    assert client._is_rate_limit_error(MockStatusError("Some rate error")) is True
+
+    # 4. Non-rate-limit errors return False
+    err_syntax = Exception("Invalid JSON payload: syntax error in request body")
+    assert client._is_rate_limit_error(err_syntax) is False
+
+
+@pytest.mark.asyncio
+async def test_terminal_gemini_quota_failure_marks_task_as_failed(tmp_path, async_db_session, monkeypatch):
+    """Verify workflow catches terminal Gemini quota exception and marks task as FAILED in DB."""
+    import git
+
+    # Setup local bare repo as the remote repository
+    remote_dir = tmp_path / "remote_quota.git"
+    remote_repo = git.Repo.init(str(remote_dir), bare=True)
+
+    # Seed it with an initial commit
+    seed_dir = tmp_path / "seed_quota"
+    seed_repo = git.Repo.init(str(seed_dir))
+    (seed_dir / "README.md").write_text("# Initial Repo")
+    seed_repo.git.add(A=True)
+    seed_repo.index.commit("Initial seed commit")
+    seed_repo.create_head("main")
+    seed_repo.create_remote("origin", str(remote_dir))
+    seed_repo.git.push("origin", "main:main")
+
+    ws = tmp_path / "workspace_quota_fail"
+
+    repo = TaskRepository(async_db_session)
+    await repo.create_task(
+        task_id="task-quota-fail",
+        repository_url=str(remote_dir),
+        user_instruction="Implement feature",
+        workspace_path=str(ws),
+    )
+
+    class MockSessionFactory:
+        def __call__(self):
+            return self
+
+        async def __aenter__(self):
+            return async_db_session
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    monkeypatch.setattr("app.services.task_service.get_session_factory", lambda: MockSessionFactory())
+
+    # Mock LLM that raises terminal quota exhaustion error during planning
+    class QuotaExhaustedLLMClient(MockLLMClient):
+        async def generate_structured(self, *args, **kwargs):
+            raise Exception(
+                "Gemini API rate limit persisted after 2 retries: "
+                "Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests"
+            )
+
+    quota_llm = QuotaExhaustedLLMClient()
+    task_svc = TaskManagerService(llm_client=quota_llm)
+
+    # Execute workflow which should catch terminal Gemini quota error
+    await task_svc._execute_workflow(
+        task_id="task-quota-fail",
+        repository_url=str(remote_dir),
+        user_instruction="Implement feature",
+        workspace_path=str(ws),
+        base_branch="main",
+        working_branch="agent-fix/task-quota-fail",
+        max_retries=1,
+    )
+
+    # Verify task in DB is FAILED with useful error message, NOT RUNNING
+    db_task = await repo.get_task("task-quota-fail")
+    assert db_task is not None
+    assert db_task.status == TaskStatus.FAILED.value
+    assert db_task.current_phase == WorkflowPhase.FINISHED.value
+    assert "Quota exceeded" in db_task.error_message
+
+
+def test_uvicorn_reload_excludes_temp_workspaces():
+    """Verify settings configure Uvicorn to watch only app/ and exclude temp_workspaces/."""
+    from app.config import get_settings
+
+    settings = get_settings()
+    assert "app" in settings.reload_dirs
+    assert any("temp_workspaces" in pat for pat in settings.reload_excludes)
+
+
+@pytest.mark.asyncio
+async def test_lifespan_recovers_orphaned_tasks(async_db_session, monkeypatch):
+    """Verify application lifespan recovers orphaned RUNNING tasks on server startup."""
+    from unittest.mock import AsyncMock
+    from app.main import lifespan, app
+
+    repo = TaskRepository(async_db_session)
+    # Create an orphaned task in RUNNING state
+    await repo.create_task(
+        task_id="task-orphaned-1",
+        repository_url="https://github.com/example/orphan",
+        user_instruction="Fix issue",
+        workspace_path="/tmp/orphan",
+    )
+    await repo.update_task_phase(
+        task_id="task-orphaned-1",
+        phase=WorkflowPhase.CODING,
+        status=TaskStatus.RUNNING,
+    )
+
+    class MockSessionFactory:
+        def __call__(self):
+            return self
+
+        async def __aenter__(self):
+            return async_db_session
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    monkeypatch.setattr("app.main.get_session_factory", lambda: MockSessionFactory())
+    monkeypatch.setattr("app.main.init_db", AsyncMock())
+
+    # Run lifespan context
+    async with lifespan(app):
+        pass
+
+    # Verify task is recovered to FAILED
+    task = await repo.get_task("task-orphaned-1")
+    assert task.status == TaskStatus.FAILED.value
+    assert task.current_phase == WorkflowPhase.FINISHED.value
+    assert "interrupted" in task.error_message.lower()

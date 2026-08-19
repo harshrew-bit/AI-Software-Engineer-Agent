@@ -66,24 +66,25 @@ class GeminiLLMClient(BaseLLMClient):
 
     @staticmethod
     def _is_rate_limit_error(error: Exception) -> bool:
-        """Return True when the Gemini API error represents HTTP 429."""
+        """Return True when the Gemini API error represents HTTP 429, RESOURCE_EXHAUSTED, or quota exhaustion."""
         status_code = (
             getattr(error, "status_code", None)
             or getattr(error, "status", None)
             or getattr(error, "code", None)
         )
 
-        if str(status_code) == "429":
+        if str(status_code) in ("429", "RESOURCE_EXHAUSTED"):
             return True
 
-        error_text = str(error)
+        error_text = str(error).lower()
+        if "429" in error_text:
+            return True
+
         return (
-            "429" in error_text
-            and (
-                "too_many_requests" in error_text.lower()
-                or "rate limit" in error_text.lower()
-                or "quota exceeded" in error_text.lower()
-            )
+            "quota exceeded" in error_text
+            or "resource_exhausted" in error_text
+            or "too_many_requests" in error_text
+            or "rate limit" in error_text
         )
 
     def _get_retry_delay(self, error: Exception) -> float:

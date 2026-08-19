@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     debug: bool = True
     port: int = 8000
     host: str = "0.0.0.0"
+    reload_dirs: list[str] = ["app"]
+    reload_excludes: list[str] = ["temp_workspaces*", "tests*", "data*", "*.db*"]
 
     # LLM Settings
     default_llm_provider: Literal["gemini", "mock", "openai", "anthropic"] = "gemini"
