@@ -1,5 +1,6 @@
 """LangGraph State Models and Execution Payloads."""
 
+import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, model_validator
@@ -27,11 +28,12 @@ class ToolExecutionRecord(BaseModel):
 
 
 class PlanStep(BaseModel):
-    """An individual step inside the agent's implementation plan."""
+    """Individual action step in an execution plan."""
     step_id: int
     title: str
     description: str
     target_files: List[str] = Field(default_factory=list)
+    status: str = "pending"  # pending, in_progress, completed, failed
     completed: bool = False
     notes: Optional[str] = None
 
@@ -113,11 +115,77 @@ class TestExecutionSummary(BaseModel):
 
 class PendingApproval(BaseModel):
     """Details of an action currently paused for human approval."""
-    action_type: str
+    approval_id: Optional[str] = None
+    action_type: str = "tool_execution"
     tool_name: str
-    payload: Dict[str, Any]
-    reason: str
-    requested_at: datetime = Field(default_factory=utc_now)
+    action_payload: Dict[str, Any] = Field(default_factory=dict)
+    payload: Dict[str, Any] = Field(default_factory=dict)
+    reason: str = ""
+    status: ApprovalStatus = ApprovalStatus.PENDING
+    reviewer_feedback: Optional[str] = None
+    created_at: datetime = Field(default_factory=utc_now)
+    requested_at: Optional[datetime] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_approval(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            d = dict(data)
+            # Sync approval_id / id
+            if not d.get("approval_id") and d.get("id"):
+                d["approval_id"] = d["id"]
+            elif not d.get("id") and d.get("approval_id"):
+                d["id"] = d["approval_id"]
+
+            # Sync payload and action_payload
+            if "action_payload" in d and "payload" not in d:
+                d["payload"] = d["action_payload"]
+            elif "payload" in d and "action_payload" not in d:
+                d["action_payload"] = d["payload"]
+
+            # Ensure payload/action_payload is a dict if JSON string
+            if isinstance(d.get("action_payload"), str):
+                try:
+                    d["action_payload"] = json.loads(d["action_payload"])
+                except Exception:
+                    d["action_payload"] = {}
+                d["payload"] = d["action_payload"]
+            elif isinstance(d.get("payload"), str):
+                try:
+                    d["payload"] = json.loads(d["payload"])
+                except Exception:
+                    d["payload"] = {}
+                d["action_payload"] = d["payload"]
+
+            if d.get("action_payload") is None:
+                d["action_payload"] = {}
+            if d.get("payload") is None:
+                d["payload"] = {}
+
+            # Sync reason and reviewer_feedback
+            if not d.get("reason"):
+                if d.get("reviewer_feedback"):
+                    d["reason"] = d["reviewer_feedback"]
+                elif d.get("tool_name"):
+                    d["reason"] = f"Action '{d['tool_name']}' requires human approval before execution."
+                else:
+                    d["reason"] = "Human approval required."
+
+            # Sync created_at and requested_at
+            if "requested_at" in d and "created_at" not in d:
+                d["created_at"] = d["requested_at"]
+            elif "created_at" in d and "requested_at" not in d:
+                d["requested_at"] = d["created_at"]
+
+            # Normalize status
+            if "status" in d and isinstance(d["status"], str):
+                try:
+                    d["status"] = ApprovalStatus(d["status"])
+                except ValueError:
+                    d["status"] = ApprovalStatus.PENDING
+
+            return d
+        return data
 
 
 class AgentState(BaseModel):

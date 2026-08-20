@@ -21,6 +21,7 @@ def test_settings(tmp_path) -> Settings:
         workspaces_root=tmp_path / "workspaces",
         default_llm_provider="mock",
         gemini_api_key="mock_key",
+        github_token="",
     )
 
 

@@ -19,8 +19,11 @@ class GitHubManager:
     """Manages remote GitHub interactions like Pull Requests and comments."""
 
     def __init__(self, token: Optional[str] = None):
-        settings = get_settings()
-        self.token = token or settings.github_token
+        if token is not None:
+            self.token = token
+        else:
+            settings = get_settings()
+            self.token = settings.github_token
         self._gh: Optional[Github] = None
 
     @property

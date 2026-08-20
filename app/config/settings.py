@@ -27,9 +27,15 @@ class Settings(BaseSettings):
     reload_excludes: list[str] = ["temp_workspaces*", "tests*", "data*", "*.db*"]
 
     # LLM Settings
-    default_llm_provider: Literal["gemini", "mock", "openai", "anthropic"] = "gemini"
+    default_llm_provider: Literal["gemini", "mock", "openai", "anthropic"] = Field(
+        default="gemini", alias="LLM_PROVIDER"
+    )
     gemini_api_key: Optional[str] = Field(default=None, alias="GEMINI_API_KEY")
-    gemini_model: str = "gemini-2.5-pro"
+    gemini_model: str = Field(default="gemini-2.5-pro", alias="GEMINI_MODEL")
+    openai_api_key: Optional[str] = Field(default=None, alias="OPENAI_API_KEY")
+    openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
+    openai_max_retries: int = 3
+    openai_retry_delay_seconds: float = 2.0
     llm_temperature: float = 0.2
     llm_max_tokens: int = 8192
     llm_timeout_seconds: int = 60

@@ -34,7 +34,7 @@ def test_should_continue_testing_edges():
 
 
 @pytest.mark.asyncio
-async def test_full_graph_workflow_single_pass(tmp_path):
+async def test_full_graph_workflow_single_pass(tmp_path, test_settings):
     """Test end-to-end execution of compiled LangGraph with single pass."""
     ws = tmp_path / "workspace"
     git_manager = GitWorkspaceManager(task_id="task-graph-1", workspace_path=ws)
@@ -80,7 +80,7 @@ async def test_full_graph_workflow_single_pass(tmp_path):
         ),
     )
 
-    app = build_agent_graph(llm_client=mock_llm, tool_registry=create_default_tool_registry())
+    app = build_agent_graph(llm_client=mock_llm, tool_registry=create_default_tool_registry(), settings=test_settings)
 
     initial_state: GraphState = {
         "task_id": "task-graph-1",
@@ -102,7 +102,7 @@ async def test_full_graph_workflow_single_pass(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_graph_workflow_with_debug_retry_loop(tmp_path):
+async def test_graph_workflow_with_debug_retry_loop(tmp_path, test_settings):
     """Test iterative self-healing test & debug loop."""
     ws = tmp_path / "workspace_debug"
     git_manager = GitWorkspaceManager(task_id="task-graph-debug", workspace_path=ws)
@@ -181,7 +181,7 @@ async def test_graph_workflow_with_debug_retry_loop(tmp_path):
         ),
     )
 
-    app = build_agent_graph(llm_client=mock_llm, tool_registry=create_default_tool_registry())
+    app = build_agent_graph(llm_client=mock_llm, tool_registry=create_default_tool_registry(), settings=test_settings)
 
     initial_state: GraphState = {
         "task_id": "task-graph-debug",

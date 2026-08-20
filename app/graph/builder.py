@@ -28,12 +28,14 @@ def build_agent_graph(
     tool_registry: Optional[ToolRegistry] = None,
     repository: Optional[Any] = None,
     checkpointer: Optional[Any] = None,
+    settings: Optional[Any] = None,
 ):
     """Construct and compile the autonomous software engineering LangGraph state machine."""
     context = WorkflowContext(
         llm_client=llm_client,
         tool_registry=tool_registry,
         repository=repository,
+        settings=settings,
     )
     workflow = StateGraph(GraphState)
 

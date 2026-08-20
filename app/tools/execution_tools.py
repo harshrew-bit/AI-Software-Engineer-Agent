@@ -78,6 +78,15 @@ class RunTestsTool(BaseTool):
         ws = context.workspace_path
         if (ws / "pytest.ini").exists() or (ws / "pyproject.toml").exists() or (ws / "tests").exists():
             return "pytest -v"
+        if any(ws.glob("test_*.py")) or any(ws.glob("*_test.py")):
+            return "pytest -v"
+        req_file = ws / "requirements.txt"
+        if req_file.exists():
+            try:
+                if "pytest" in req_file.read_text(encoding="utf-8", errors="ignore"):
+                    return "pytest -v"
+            except Exception:
+                pass
         if (ws / "package.json").exists():
             return "npm test"
         if (ws / "Cargo.toml").exists():

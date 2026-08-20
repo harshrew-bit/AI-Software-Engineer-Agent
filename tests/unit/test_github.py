@@ -42,7 +42,7 @@ def test_github_url_parsing():
 @pytest.mark.asyncio
 async def test_github_manager_dry_run():
     """Verify GitHubManager operations in dry-run mode without real tokens."""
-    gh = GitHubManager(token=None)
+    gh = GitHubManager(token="")
 
     # 1. Create PR
     pr_result = await gh.create_pull_request(

@@ -38,11 +38,12 @@ class WorkflowContext:
         llm_client: BaseLLMClient,
         tool_registry: Optional[ToolRegistry] = None,
         repository: Optional[Any] = None,
+        settings: Optional[Any] = None,
     ):
         self.llm_client = llm_client
         self.tool_registry = tool_registry or create_default_tool_registry()
         self.repository = repository
-        self.settings = get_settings()
+        self.settings = settings or get_settings()
 
 
 # --- Node 1: Repository Analysis ---
@@ -272,6 +273,8 @@ async def coding_node(state: GraphState, context: WorkflowContext) -> GraphState
                     "action_type": "tool_execution",
                     "tool_name": tool_call.name,
                     "action_payload": tool_call.arguments,
+                    "payload": tool_call.arguments,
+                    "reason": f"Action '{tool_call.name}' requires human approval before execution.",
                     "status": "pending",
                 }
                 await global_event_bus.publish(
@@ -564,8 +567,8 @@ async def pull_request_node(state: GraphState, context: WorkflowContext) -> Grap
     workspace_path = Path(state["workspace_path"])
     git_manager = GitWorkspaceManager(task_id=task_id, workspace_path=workspace_path)
 
-    # 1. Push working branch to remote repository before PR creation
-    is_dry_run = not bool(context.settings.github_token)
+    is_github_repo = repo_url.startswith("http://") or repo_url.startswith("https://") or repo_url.startswith("git@")
+    is_dry_run = not bool(context.settings.github_token) or not is_github_repo
     if not is_dry_run:
         logger.info(f"[{task_id}] Pushing working branch '{working_branch}' to remote origin...")
         try:

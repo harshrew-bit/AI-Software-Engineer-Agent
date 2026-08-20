@@ -184,3 +184,57 @@ async def test_get_task_detail_with_stored_test_results():
         assert test_2["command"] == "pytest -v tests/test_extra.py"
         assert test_2["passed"] is False
         assert test_2["failures"] == 1
+
+
+@pytest.mark.asyncio
+async def test_get_task_detail_with_pending_approval():
+    """Verify GET /tasks/{task_id}/detail returns HTTP 200 and serializes pending_approval cleanly."""
+    import uuid
+    from app.database.session import get_session_factory
+    from app.database.repository import TaskRepository
+    from app.models.enums import TaskStatus, WorkflowPhase
+
+    test_task_id = f"task_appr_detail_{uuid.uuid4().hex[:8]}"
+
+    session_factory = get_session_factory()
+    async with session_factory() as session:
+        repo = TaskRepository(session)
+        await repo.create_task(
+            task_id=test_task_id,
+            repository_url="https://github.com/example/test-appr",
+            user_instruction="Delete sensitive file",
+            workspace_path="/tmp/test_appr",
+        )
+        await repo.update_task_phase(
+            task_id=test_task_id,
+            phase=WorkflowPhase.CODING,
+            status=TaskStatus.PAUSED_FOR_APPROVAL,
+        )
+        await repo.create_approval_request(
+            approval_id=f"appr_{test_task_id}_delete_file",
+            task_id=test_task_id,
+            action_type="tool_execution",
+            tool_name="delete_file",
+            action_payload={"file_path": "sensitive.env"},
+        )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get(f"/api/v1/tasks/{test_task_id}/detail")
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+        data = resp.json()
+        assert data["id"] == test_task_id
+        assert data["status"] == "paused_for_approval"
+
+        # Verify pending_approval structure
+        pending_appr = data["pending_approval"]
+        assert pending_appr is not None
+        assert pending_appr["approval_id"] == f"appr_{test_task_id}_delete_file"
+        assert pending_appr["tool_name"] == "delete_file"
+        assert pending_appr["action_type"] == "tool_execution"
+        assert pending_appr["status"] == "pending"
+        # Verify both payload and action_payload are present and matched
+        assert pending_appr["action_payload"] == {"file_path": "sensitive.env"}
+        assert pending_appr["payload"] == {"file_path": "sensitive.env"}
+        # Verify reason is present
+        assert "delete_file" in pending_appr["reason"]

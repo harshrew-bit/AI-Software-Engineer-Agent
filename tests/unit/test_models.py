@@ -4,6 +4,7 @@ from app.models.enums import ApprovalStatus, TaskStatus, WorkflowPhase
 from app.models.state import (
     AgentPlan,
     AgentState,
+    PendingApproval,
     PlanStep,
     TestExecutionSummary,
     ToolExecutionRecord,
@@ -142,3 +143,47 @@ def test_test_execution_summary_normalization_success_and_failure():
     assert summary_canonical.passed is True
     assert summary_canonical.total_tests == 5
     assert summary_canonical.duration_seconds == 1.5
+
+
+def test_pending_approval_model_normalization():
+    """Verify PendingApproval normalizes payload/action_payload and reason from different formats."""
+    # 1. Stored DB approval format (with action_payload and reviewer_feedback)
+    raw_db = {
+        "approval_id": "appr_123_delete_file",
+        "action_type": "tool_execution",
+        "tool_name": "delete_file",
+        "action_payload": {"file_path": "legacy.py"},
+        "status": "pending",
+        "reviewer_feedback": "Requires destructive file approval",
+    }
+    appr1 = PendingApproval.model_validate(raw_db)
+    assert appr1.approval_id == "appr_123_delete_file"
+    assert appr1.tool_name == "delete_file"
+    assert appr1.payload == {"file_path": "legacy.py"}
+    assert appr1.action_payload == {"file_path": "legacy.py"}
+    assert appr1.reason == "Requires destructive file approval"
+    assert appr1.status == ApprovalStatus.PENDING
+
+    # 2. Original schema format (with payload and reason)
+    raw_schema = {
+        "action_type": "tool_execution",
+        "tool_name": "run_command",
+        "payload": {"command": "rm -rf /tmp/data"},
+        "reason": "Destructive system command",
+    }
+    appr2 = PendingApproval.model_validate(raw_schema)
+    assert appr2.tool_name == "run_command"
+    assert appr2.payload == {"command": "rm -rf /tmp/data"}
+    assert appr2.action_payload == {"command": "rm -rf /tmp/data"}
+    assert appr2.reason == "Destructive system command"
+
+    # 3. Stringified JSON action_payload
+    raw_json_str = {
+        "id": "appr_456",
+        "tool_name": "modify_file",
+        "action_payload": '{"file_path": "config.yaml", "changes": "key: val"}',
+    }
+    appr3 = PendingApproval.model_validate(raw_json_str)
+    assert appr3.approval_id == "appr_456"
+    assert appr3.payload == {"file_path": "config.yaml", "changes": "key: val"}
+    assert "modify_file" in appr3.reason

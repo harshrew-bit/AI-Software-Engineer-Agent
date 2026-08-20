@@ -5,7 +5,12 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, HttpUrl
 
 from app.models.enums import ApprovalStatus, TaskStatus, WorkflowPhase
-from app.models.state import AgentPlan, TestExecutionSummary, ToolExecutionRecord
+from app.models.state import (
+    AgentPlan,
+    PendingApproval,
+    TestExecutionSummary,
+    ToolExecutionRecord,
+)
 
 
 def utc_now() -> datetime:
@@ -62,7 +67,7 @@ class TaskDetailResponse(TaskResponse):
     tool_history: List[ToolExecutionRecord] = Field(default_factory=list)
     modified_files: List[str] = Field(default_factory=list)
     test_results: List[TestExecutionSummary] = Field(default_factory=list)
-    pending_approval: Optional[Dict[str, Any]] = None
+    pending_approval: Optional[PendingApproval] = None
 
 
 class ApprovalDecisionRequest(BaseModel):

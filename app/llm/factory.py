@@ -5,6 +5,7 @@ from app.config import get_settings
 from app.llm.base import BaseLLMClient
 from app.llm.gemini import GeminiLLMClient
 from app.llm.mock import MockLLMClient
+from app.llm.openai import OpenAILLMClient
 
 
 def get_llm_client(
@@ -21,9 +22,14 @@ def get_llm_client(
             api_key=api_key or settings.gemini_api_key,
             model_name=model_name or settings.gemini_model,
         )
+    elif selected_provider == "openai":
+        return OpenAILLMClient(
+            api_key=api_key or settings.openai_api_key,
+            model_name=model_name or settings.openai_model,
+        )
     elif selected_provider == "mock":
         return MockLLMClient()
     else:
         raise ValueError(
-            f"Unsupported LLM provider: '{selected_provider}'. Supported: 'gemini', 'mock'."
+            f"Unsupported LLM provider: '{selected_provider}'. Supported: 'gemini', 'openai', 'mock'."
         )
