@@ -32,7 +32,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-slate-200 flex flex-col font-sans relative selection:bg-icy-400/25 selection:text-white">
+    <div className="min-h-screen bg-midnight-950 text-slate-200 flex flex-col font-sans relative selection:bg-copper-500/30 selection:text-champagne-100">
       {/* Bespoke Topographic Intelligence Background */}
       <TopographicBackground />
 
@@ -54,13 +54,13 @@ export function App() {
           )}
         </main>
 
-        <footer className="border-t border-white/[0.06] py-5 mt-auto bg-graphite-950/70 backdrop-blur-md">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-mist-500 font-mono">
+        <footer className="border-t border-white/[0.06] py-5 mt-auto bg-midnight-950/70 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-mist-400 font-mono">
             <div className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-icy-400/60 inline-block"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-copper-400/80 inline-block"></span>
               <span>Topographic Intelligence Workspace &bull; Autonomous LangGraph &amp; Docker Sandbox</span>
             </div>
-            <div className="text-mist-600">
+            <div className="text-mist-500">
               React 18 &bull; Vite &bull; Tailwind CSS &bull; FastAPI SSE
             </div>
           </div>

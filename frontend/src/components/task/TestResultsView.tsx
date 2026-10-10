@@ -24,21 +24,21 @@ export const TestResultsView: React.FC<TestResultsViewProps> = ({ testResults })
 
   return (
     <div className="glass-panel p-6 relative overflow-hidden">
-      {/* Top subtle highlight */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-icy-400/25 to-transparent pointer-events-none" />
+      {/* Top subtle warm champagne highlight */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-champagne-300/30 to-transparent pointer-events-none" />
 
       <div className="mb-5 pb-4 border-b border-white/[0.06] flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-icy-400"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-copper-400"></span>
             <span className="text-[10px] font-mono text-mist-400 uppercase tracking-widest">
               Verification Suite
             </span>
           </div>
           <h3 className="text-sm md:text-base font-bold text-white flex items-center gap-2 mt-0.5">
-            <ShieldCheck className="w-4 h-4 text-icy-400" />
+            <ShieldCheck className="w-4 h-4 text-copper-400" />
             <span>Sandbox Test Verification</span>
-            <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-graphite-900 border border-white/[0.08] text-mist-300">
+            <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-champagne-200">
               {testResults.length} {testResults.length === 1 ? 'execution' : 'executions'}
             </span>
           </h3>

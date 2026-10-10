@@ -41,11 +41,11 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({ taskId, onBack }
   if (loading && !task) {
     return (
       <div className="py-24 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-graphite-900 border border-white/[0.08] flex items-center justify-center mx-auto mb-4 shadow-glass">
-          <Loader2 className="w-7 h-7 animate-spin text-icy-400" />
+        <div className="w-14 h-14 rounded-2xl bg-midnight-950/80 border border-white/[0.08] flex items-center justify-center mx-auto mb-4 shadow-glass">
+          <Loader2 className="w-7 h-7 animate-spin text-copper-400" />
         </div>
         <h3 className="text-sm font-bold text-slate-200 tracking-tight">Syncing Task Telemetry...</h3>
-        <p className="text-xs text-mist-500 font-mono mt-1">{taskId}</p>
+        <p className="text-xs text-mist-400 font-mono mt-1">{taskId}</p>
       </div>
     );
   }
@@ -111,16 +111,16 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({ taskId, onBack }
       />
 
       {/* Tabs Navigation Bar */}
-      <div className="glass-panel-subtle p-1.5 rounded-xl flex items-center gap-1.5 overflow-x-auto border border-white/[0.06]">
+      <div className="glass-panel-subtle p-1.5 rounded-xl flex items-center gap-1.5 overflow-x-auto border border-white/[0.08]">
         <button
           onClick={() => setActiveTab('tools')}
           className={`px-3.5 py-2 rounded-lg text-xs font-mono transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'tools'
-              ? 'bg-steel-800 text-white shadow-sm border border-white/[0.12] font-semibold'
+              ? 'bg-white/[0.08] text-white shadow-sm border border-copper-400/40 font-semibold shadow-inner-copper'
               : 'text-mist-400 hover:text-slate-200 hover:bg-white/[0.03]'
           }`}
         >
-          <Wrench className="w-3.5 h-3.5 text-icy-400" />
+          <Wrench className="w-3.5 h-3.5 text-copper-400" />
           <span>Tool Audit Trail ({task.tool_history?.length || 0})</span>
         </button>
 
@@ -128,7 +128,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({ taskId, onBack }
           onClick={() => setActiveTab('files')}
           className={`px-3.5 py-2 rounded-lg text-xs font-mono transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'files'
-              ? 'bg-steel-800 text-white shadow-sm border border-white/[0.12] font-semibold'
+              ? 'bg-white/[0.08] text-white shadow-sm border border-copper-400/40 font-semibold shadow-inner-copper'
               : 'text-mist-400 hover:text-slate-200 hover:bg-white/[0.03]'
           }`}
         >
@@ -140,11 +140,11 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({ taskId, onBack }
           onClick={() => setActiveTab('tests')}
           className={`px-3.5 py-2 rounded-lg text-xs font-mono transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'tests'
-              ? 'bg-steel-800 text-white shadow-sm border border-white/[0.12] font-semibold'
+              ? 'bg-white/[0.08] text-white shadow-sm border border-copper-400/40 font-semibold shadow-inner-copper'
               : 'text-mist-400 hover:text-slate-200 hover:bg-white/[0.03]'
           }`}
         >
-          <ShieldCheck className="w-3.5 h-3.5 text-icy-300" />
+          <ShieldCheck className="w-3.5 h-3.5 text-champagne-300" />
           <span>Test Runs ({task.test_results?.length || 0})</span>
         </button>
 
@@ -153,11 +153,11 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({ taskId, onBack }
             onClick={() => setActiveTab('plan')}
             className={`px-3.5 py-2 rounded-lg text-xs font-mono transition-all flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'plan'
-                ? 'bg-steel-800 text-white shadow-sm border border-white/[0.12] font-semibold'
+                ? 'bg-white/[0.08] text-white shadow-sm border border-copper-400/40 font-semibold shadow-inner-copper'
                 : 'text-mist-400 hover:text-slate-200 hover:bg-white/[0.03]'
             }`}
           >
-            <ListTodo className="w-3.5 h-3.5 text-sky-400" />
+            <ListTodo className="w-3.5 h-3.5 text-champagne-400" />
             <span>Architecture Plan ({task.plan.steps?.length || 0})</span>
           </button>
         )}
@@ -166,11 +166,11 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({ taskId, onBack }
           onClick={() => setActiveTab('events')}
           className={`px-3.5 py-2 rounded-lg text-xs font-mono transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'events'
-              ? 'bg-steel-800 text-white shadow-sm border border-white/[0.12] font-semibold'
+              ? 'bg-white/[0.08] text-white shadow-sm border border-copper-400/40 font-semibold shadow-inner-copper'
               : 'text-mist-400 hover:text-slate-200 hover:bg-white/[0.03]'
           }`}
         >
-          <Radio className="w-3.5 h-3.5 text-cyan-400" />
+          <Radio className="w-3.5 h-3.5 text-copper-400" />
           <span>Live SSE Stream ({events.length})</span>
         </button>
       </div>

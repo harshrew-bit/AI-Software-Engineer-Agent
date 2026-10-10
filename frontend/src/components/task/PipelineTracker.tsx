@@ -161,15 +161,15 @@ export const PipelineTracker: React.FC<PipelineTrackerProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-white/[0.06]">
         <div>
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-icy-400 animate-pulse"></span>
-            <h3 className="text-sm font-semibold text-slate-100 tracking-tight font-sans">
+            <span className="w-2 h-2 rounded-full bg-copper-400 animate-pulse"></span>
+            <h3 className="text-sm font-semibold text-white tracking-tight font-sans">
               Seven-Phase Execution Topology
             </h3>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-steel-900/80 text-mist-300 border border-white/[0.06]">
-              Autonomous Cycle
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-champagne-300 border border-white/[0.08]">
+              Autonomous Pipeline
             </span>
           </div>
-          <p className="text-xs text-mist-400 mt-1 font-sans">
+          <p className="text-xs text-mist-300 mt-1 font-sans">
             Deterministic LangGraph state machine orchestrating repository operations.
           </p>
         </div>
@@ -182,8 +182,8 @@ export const PipelineTracker: React.FC<PipelineTrackerProps> = ({
             </div>
           )}
 
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-graphite-900/80 text-mist-400 border border-white/[0.06]">
-            <Activity className="w-3 h-3 text-icy-400" />
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] text-mist-300 border border-white/[0.08]">
+            <Activity className="w-3 h-3 text-copper-400" />
             <span className="capitalize">{status.replace(/_/g, ' ')}</span>
           </div>
         </div>
@@ -192,9 +192,9 @@ export const PipelineTracker: React.FC<PipelineTrackerProps> = ({
       {/* Desktop Horizontal Connected Conduit Layout */}
       <div className="hidden lg:block relative">
         {/* Connected Terrain Flow Line */}
-        <div className="absolute top-[32px] left-[4%] right-[4%] h-[2px] bg-graphite-800 pointer-events-none z-0">
+        <div className="absolute top-[32px] left-[4%] right-[4%] h-[2px] bg-white/[0.08] pointer-events-none z-0">
           <div
-            className="h-full bg-gradient-to-r from-emerald-500 via-sky-400 to-icy-400 transition-all duration-500 shadow-glow-cyan"
+            className="h-full bg-gradient-to-r from-emerald-500 via-copper-400 to-champagne-300 transition-all duration-500 shadow-glow-copper"
             style={{
               width:
                 status === 'completed'
@@ -211,11 +211,11 @@ export const PipelineTracker: React.FC<PipelineTrackerProps> = ({
 
             // Visual treatment based on state
             let containerClasses =
-              'bg-graphite-900/50 border-white/[0.05] text-mist-400 hover:border-white/[0.1]';
+              'bg-white/[0.03] border-white/[0.06] text-mist-400 hover:border-white/[0.12]';
             let iconWrapper =
-              'bg-graphite-800 text-mist-500 border border-white/[0.05]';
+              'bg-white/[0.04] text-mist-400 border border-white/[0.06]';
             let badgeText = 'Pending';
-            let badgeClass = 'text-mist-500 bg-graphite-950/60 border-white/[0.04]';
+            let badgeClass = 'text-mist-500 bg-midnight-950/60 border-white/[0.04]';
             let indicator = <Clock className="w-3 h-3 text-mist-500" />;
 
             if (state === 'completed') {
@@ -228,12 +228,12 @@ export const PipelineTracker: React.FC<PipelineTrackerProps> = ({
               indicator = <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />;
             } else if (state === 'active') {
               containerClasses =
-                'bg-sky-950/30 border-sky-500/60 text-white shadow-glow-cyan/20 ring-1 ring-sky-500/40';
+                'bg-copper-950/30 border-copper-400/80 text-white shadow-glow-copper/30 ring-1 ring-copper-400/50';
               iconWrapper =
-                'bg-sky-600/30 text-icy-300 border border-sky-400/60 animate-pulse';
+                'bg-copper-600/30 text-champagne-200 border border-copper-400/70 animate-pulse';
               badgeText = 'Active';
-              badgeClass = 'text-icy-300 bg-sky-950/80 border-sky-700/70';
-              indicator = <Loader2 className="w-3.5 h-3.5 text-icy-300 animate-spin" />;
+              badgeClass = 'text-champagne-200 bg-copper-950/80 border-copper-700/70';
+              indicator = <Loader2 className="w-3.5 h-3.5 text-copper-300 animate-spin" />;
             } else if (state === 'waiting_for_approval') {
               containerClasses =
                 'bg-amber-950/30 border-amber-500/70 text-amber-200 shadow-glow-amber/30 ring-1 ring-amber-500/50';
@@ -308,15 +308,15 @@ export const PipelineTracker: React.FC<PipelineTrackerProps> = ({
 
       {/* Responsive Vertical Connected Timeline for Laptop & Mobile */}
       <div className="block lg:hidden">
-        <div className="relative pl-6 space-y-3 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-graphite-800">
+        <div className="relative pl-6 space-y-3 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-white/[0.08]">
           {WORKFLOW_SEVEN_PHASES.map((phase, idx) => {
             const state = getPhaseState(idx);
             const PhaseIcon = phase.icon;
 
-            let dotClass = 'bg-graphite-700 border-graphite-600';
-            let cardBg = 'bg-graphite-900/60 border-white/[0.05] text-mist-300';
+            let dotClass = 'bg-white/[0.1] border-white/[0.2]';
+            let cardBg = 'bg-white/[0.03] border-white/[0.06] text-mist-300';
             let badgeText = 'Pending';
-            let badgeColor = 'text-mist-500 border-white/[0.04] bg-graphite-950/60';
+            let badgeColor = 'text-mist-500 border-white/[0.04] bg-midnight-950/60';
 
             if (state === 'completed') {
               dotClass = 'bg-emerald-500 border-emerald-400 shadow-glow-emerald';
@@ -324,10 +324,10 @@ export const PipelineTracker: React.FC<PipelineTrackerProps> = ({
               badgeText = 'Complete';
               badgeColor = 'text-emerald-400 border-emerald-800/60 bg-emerald-950/60';
             } else if (state === 'active') {
-              dotClass = 'bg-sky-400 border-sky-300 shadow-glow-cyan animate-pulse';
-              cardBg = 'bg-sky-950/30 border-sky-500/60 text-white ring-1 ring-sky-500/40';
+              dotClass = 'bg-copper-400 border-copper-300 shadow-glow-copper animate-pulse';
+              cardBg = 'bg-copper-950/30 border-copper-400/70 text-white ring-1 ring-copper-400/40';
               badgeText = 'Active';
-              badgeColor = 'text-icy-300 border-sky-700/70 bg-sky-950/80';
+              badgeColor = 'text-champagne-200 border-copper-700/70 bg-copper-950/80';
             } else if (state === 'waiting_for_approval') {
               dotClass = 'bg-amber-400 border-amber-300 shadow-glow-amber animate-pulse';
               cardBg = 'bg-amber-950/30 border-amber-500/70 text-amber-200 ring-1 ring-amber-500/50';

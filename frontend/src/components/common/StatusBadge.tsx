@@ -40,8 +40,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
         );
       case 'running':
         return (
-          <span className={`inline-flex items-center rounded-full bg-sky-950/50 text-icy-300 border border-sky-600/50 shadow-glow-cyan/20 ${sizeClasses}`}>
-            {showIcon && <PlayCircle className="w-3.5 h-3.5 text-icy-300 animate-spin" />}
+          <span className={`inline-flex items-center rounded-full bg-copper-950/40 text-champagne-200 border border-copper-500/50 shadow-glow-copper/25 ${sizeClasses}`}>
+            {showIcon && <PlayCircle className="w-3.5 h-3.5 text-copper-300 animate-spin" />}
             <span>Running</span>
           </span>
         );
@@ -61,7 +61,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
         );
       case 'cancelled':
         return (
-          <span className={`inline-flex items-center rounded-full bg-graphite-800/80 text-mist-400 border border-white/[0.08] ${sizeClasses}`}>
+          <span className={`inline-flex items-center rounded-full bg-white/[0.04] text-mist-400 border border-white/[0.08] ${sizeClasses}`}>
             {showIcon && <XCircle className="w-3.5 h-3.5 text-mist-500" />}
             <span>Cancelled</span>
           </span>
@@ -69,7 +69,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       case 'pending':
       default:
         return (
-          <span className={`inline-flex items-center rounded-full bg-graphite-900/80 text-mist-400 border border-white/[0.06] ${sizeClasses}`}>
+          <span className={`inline-flex items-center rounded-full bg-white/[0.03] text-mist-400 border border-white/[0.06] ${sizeClasses}`}>
             {showIcon && <Clock className="w-3.5 h-3.5 text-mist-500" />}
             <span>Queued</span>
           </span>
@@ -84,8 +84,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       .join(' ');
 
     return (
-      <span className={`inline-flex items-center rounded-md bg-steel-900/70 text-mist-200 border border-white/[0.08] font-mono text-[11px] ${sizeClasses}`}>
-        {showIcon && <Cpu className="w-3 h-3 text-icy-400" />}
+      <span className={`inline-flex items-center rounded-md bg-white/[0.04] text-champagne-200 border border-white/[0.08] font-mono text-[11px] ${sizeClasses}`}>
+        {showIcon && <Cpu className="w-3 h-3 text-copper-400" />}
         <span>{formattedPhase}</span>
       </span>
     );

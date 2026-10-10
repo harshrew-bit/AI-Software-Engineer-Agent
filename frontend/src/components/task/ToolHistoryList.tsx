@@ -55,21 +55,21 @@ export const ToolHistoryList: React.FC<ToolHistoryListProps> = ({ toolHistory })
 
   return (
     <div className="glass-panel p-6 relative overflow-hidden">
-      {/* Top subtle highlight */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-icy-400/25 to-transparent pointer-events-none" />
+      {/* Top subtle warm champagne highlight */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-champagne-300/30 to-transparent pointer-events-none" />
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-white/[0.06]">
         <div>
           <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-icy-400"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-copper-400"></span>
             <span className="text-[10px] font-mono text-mist-400 uppercase tracking-widest">
               Execution Observability
             </span>
           </div>
           <h3 className="text-sm md:text-base font-bold text-white flex items-center gap-2 mt-0.5">
-            <Terminal className="w-4 h-4 text-icy-400" />
+            <Terminal className="w-4 h-4 text-copper-400" />
             <span>Sandbox Tool Invocations</span>
-            <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-graphite-900 border border-white/[0.08] text-mist-300">
+            <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-champagne-200">
               {toolHistory.length} actions
             </span>
           </h3>
@@ -78,13 +78,13 @@ export const ToolHistoryList: React.FC<ToolHistoryListProps> = ({ toolHistory })
         <div className="flex items-center gap-2 text-xs font-mono">
           <button
             onClick={expandAll}
-            className="px-2.5 py-1 rounded bg-steel-900/60 border border-white/[0.06] text-mist-300 hover:text-white hover:bg-steel-800 transition-colors"
+            className="px-3 py-1 rounded-lg bg-white/[0.04] border border-white/[0.08] text-mist-300 hover:text-white hover:bg-white/[0.08] transition-colors"
           >
             Expand All
           </button>
           <button
             onClick={collapseAll}
-            className="px-2.5 py-1 rounded bg-steel-900/60 border border-white/[0.06] text-mist-300 hover:text-white hover:bg-steel-800 transition-colors"
+            className="px-3 py-1 rounded-lg bg-white/[0.04] border border-white/[0.08] text-mist-300 hover:text-white hover:bg-white/[0.08] transition-colors"
           >
             Collapse All
           </button>

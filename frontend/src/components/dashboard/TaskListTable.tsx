@@ -69,24 +69,27 @@ export const TaskListTable: React.FC<TaskListTableProps> = ({
   }, [tasks, searchQuery, statusFilter]);
 
   return (
-    <div className="glass-panel overflow-hidden">
+    <div className="glass-panel overflow-hidden relative">
+      {/* Subtle top edge warm champagne specular highlight */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-champagne-300/30 to-transparent pointer-events-none" />
+
       {/* Table Header Bar */}
       <div className="p-5 md:p-6 border-b border-white/[0.06] flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-icy-400"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-copper-400"></span>
             <span className="text-[11px] font-mono text-mist-400 uppercase tracking-widest">
               Execution Registry
             </span>
           </div>
           <h3 className="text-base font-bold text-white flex items-center gap-2 mt-1">
-            <Terminal className="w-4 h-4 text-icy-400" />
+            <Terminal className="w-4 h-4 text-copper-400" />
             <span>Agent Task Runs</span>
-            <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-graphite-900 border border-white/[0.08] text-mist-300">
+            <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-champagne-200">
               {tasks.length} total
             </span>
           </h3>
-          <p className="text-xs text-mist-400 mt-0.5">
+          <p className="text-xs text-mist-300 mt-0.5">
             Audit history of autonomous repository clones, diffs, tests, and pull requests.
           </p>
         </div>
@@ -101,7 +104,7 @@ export const TaskListTable: React.FC<TaskListTableProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Filter tasks..."
-              className="pl-8 pr-3 py-1.5 bg-[#070a11] border border-white/[0.08] rounded-lg text-xs text-slate-200 placeholder-mist-600 focus:outline-none focus:border-sky-500/80 w-36 sm:w-48 font-mono"
+              className="pl-8 pr-3 py-1.5 bg-midnight-950/80 border border-white/[0.08] rounded-xl text-xs text-slate-200 placeholder-mist-600 focus:outline-none focus:border-copper-400/70 w-36 sm:w-48 font-mono shadow-inner-copper"
             />
           </div>
 
@@ -110,7 +113,7 @@ export const TaskListTable: React.FC<TaskListTableProps> = ({
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-2.5 py-1.5 bg-[#070a11] border border-white/[0.08] rounded-lg text-xs text-mist-300 focus:outline-none focus:border-sky-500/80 font-mono"
+              className="px-2.5 py-1.5 bg-midnight-950/80 border border-white/[0.08] rounded-xl text-xs text-mist-300 focus:outline-none focus:border-copper-400/70 font-mono"
             >
               <option value="all">All Statuses</option>
               <option value="completed">Completed</option>
@@ -124,10 +127,10 @@ export const TaskListTable: React.FC<TaskListTableProps> = ({
           <button
             onClick={onRefresh}
             disabled={loading}
-            className="p-1.5 rounded-lg bg-steel-900/60 border border-white/[0.08] text-mist-400 hover:text-white hover:bg-steel-800 transition-all shadow-sm"
+            className="p-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-mist-300 hover:text-white hover:bg-white/[0.08] transition-all shadow-sm"
             title="Refresh task list"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-icy-400' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-copper-400' : ''}`} />
           </button>
         </div>
       </div>
@@ -150,7 +153,7 @@ export const TaskListTable: React.FC<TaskListTableProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-graphite-950/80 border-b border-white/[0.06] text-mist-400 uppercase tracking-wider font-mono text-[11px]">
+              <tr className="bg-midnight-950/80 border-b border-white/[0.06] text-mist-400 uppercase tracking-wider font-mono text-[11px]">
                 <th className="py-3 px-4 font-medium">Task ID</th>
                 <th className="py-3 px-4 font-medium">Repository &amp; Instruction</th>
                 <th className="py-3 px-4 font-medium">Status</th>
@@ -167,7 +170,7 @@ export const TaskListTable: React.FC<TaskListTableProps> = ({
                   onClick={() => onSelectTask(task.id)}
                   className="hover:bg-white/[0.03] cursor-pointer transition-colors group"
                 >
-                  <td className="py-3.5 px-4 font-mono font-medium text-icy-300 whitespace-nowrap">
+                  <td className="py-3.5 px-4 font-mono font-medium text-champagne-300 whitespace-nowrap">
                     <span className="group-hover:underline">{task.id}</span>
                   </td>
 
@@ -203,8 +206,8 @@ export const TaskListTable: React.FC<TaskListTableProps> = ({
                           <ExternalLink className="w-2.5 h-2.5 text-emerald-400/80" />
                         </a>
                       ) : task.commit_sha ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-graphite-900/80 text-mist-300 font-mono border border-white/[0.06]">
-                          <GitBranch className="w-3 h-3 text-icy-400" />
+                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-white/[0.04] text-mist-300 font-mono border border-white/[0.06]">
+                          <GitBranch className="w-3 h-3 text-copper-400" />
                           <span>{task.commit_sha.substring(0, 7)}</span>
                         </span>
                       ) : (
@@ -223,7 +226,7 @@ export const TaskListTable: React.FC<TaskListTableProps> = ({
                         e.stopPropagation();
                         onSelectTask(task.id);
                       }}
-                      className="text-xs px-2.5 py-1 rounded bg-steel-900/60 text-mist-300 group-hover:bg-sky-600 group-hover:text-white border border-white/[0.06] group-hover:border-sky-400/50 transition-all font-mono"
+                      className="text-xs px-2.5 py-1 rounded-lg bg-white/[0.04] text-mist-300 group-hover:bg-[#d9825b] group-hover:text-white border border-white/[0.08] group-hover:border-copper-400/50 transition-all font-mono"
                     >
                       Inspect
                     </button>

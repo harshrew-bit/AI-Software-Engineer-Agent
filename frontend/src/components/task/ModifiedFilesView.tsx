@@ -45,8 +45,8 @@ export const ModifiedFilesView: React.FC<ModifiedFilesViewProps> = ({
 
   return (
     <div className="glass-panel p-6 relative overflow-hidden">
-      {/* Top subtle highlight */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-icy-400/25 to-transparent pointer-events-none" />
+      {/* Top subtle warm champagne highlight */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-champagne-300/30 to-transparent pointer-events-none" />
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5 pb-4 border-b border-white/[0.06]">
         <div>
@@ -59,30 +59,30 @@ export const ModifiedFilesView: React.FC<ModifiedFilesViewProps> = ({
           <h3 className="text-sm md:text-base font-bold text-white flex items-center gap-2 mt-0.5">
             <FileCode2 className="w-4 h-4 text-emerald-400" />
             <span>Repository Modifications</span>
-            <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-graphite-900 border border-white/[0.08] text-mist-300">
+            <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-champagne-200">
               {modifiedFiles.length} {modifiedFiles.length === 1 ? 'file' : 'files'}
             </span>
           </h3>
         </div>
 
         {/* View Toggle Tabs */}
-        <div className="flex items-center gap-1 bg-[#070a11] p-1 rounded-lg border border-white/[0.08] text-xs font-mono">
+        <div className="flex items-center gap-1 bg-midnight-950/80 p-1 rounded-xl border border-white/[0.08] text-xs font-mono">
           <button
             onClick={() => setActiveTab('diff')}
-            className={`px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
               activeTab === 'diff'
-                ? 'bg-steel-800 text-white shadow-sm border border-white/[0.1]'
+                ? 'bg-white/[0.08] text-white shadow-sm border border-copper-400/40 font-semibold shadow-inner-copper'
                 : 'text-mist-400 hover:text-slate-200'
             }`}
           >
-            <GitCompare className="w-3.5 h-3.5 text-icy-400" />
+            <GitCompare className="w-3.5 h-3.5 text-copper-400" />
             <span>Unified Diff</span>
           </button>
           <button
             onClick={() => setActiveTab('files')}
-            className={`px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
               activeTab === 'files'
-                ? 'bg-steel-800 text-white shadow-sm border border-white/[0.1]'
+                ? 'bg-white/[0.08] text-white shadow-sm border border-copper-400/40 font-semibold shadow-inner-copper'
                 : 'text-mist-400 hover:text-slate-200'
             }`}
           >
@@ -96,7 +96,7 @@ export const ModifiedFilesView: React.FC<ModifiedFilesViewProps> = ({
         <div>
           {diffLoading ? (
             <div className="p-12 text-center text-mist-400 text-xs flex items-center justify-center gap-2 font-mono">
-              <Loader2 className="w-4 h-4 animate-spin text-icy-400" />
+              <Loader2 className="w-4 h-4 animate-spin text-copper-400" />
               <span>Fetching unified git diff stream...</span>
             </div>
           ) : hasDiff ? (

@@ -105,7 +105,7 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
             type="button"
             onClick={() => handleDecision(false)}
             disabled={isBusy}
-            className="px-4 py-2 rounded-lg bg-graphite-900 hover:bg-rose-950/80 hover:text-rose-300 hover:border-rose-800/80 border border-white/[0.08] text-mist-300 text-xs font-medium flex items-center gap-1.5 transition-all disabled:opacity-50 shadow-sm"
+            className="px-4 py-2 rounded-xl bg-white/[0.04] hover:bg-rose-950/80 hover:text-rose-300 hover:border-rose-800/80 border border-white/[0.08] text-mist-300 text-xs font-medium flex items-center gap-1.5 transition-all disabled:opacity-50 shadow-sm"
           >
             {isBusy ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -119,7 +119,7 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
             type="button"
             onClick={() => handleDecision(true)}
             disabled={isBusy}
-            className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-emerald-950/60 border border-emerald-400/30 transition-all disabled:opacity-50"
+            className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-emerald-950/60 border border-emerald-400/30 transition-all disabled:opacity-50"
           >
             {isBusy ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
