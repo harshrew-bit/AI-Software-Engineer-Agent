@@ -33,66 +33,70 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
   const isBusy = actionLoading || localSubmitting;
 
   return (
-    <div className="rounded-xl border-2 border-amber-500/80 bg-amber-950/30 p-6 shadow-2xl backdrop-blur-md relative overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-amber-800/60">
+    <div className="rounded-xl border border-amber-500/50 bg-[#161208]/85 p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden ring-1 ring-amber-500/30">
+      {/* Subtle top amber highlight beam */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-400/50 to-transparent pointer-events-none" />
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-amber-900/40">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 flex-shrink-0">
-            <ShieldAlert className="w-6 h-6 animate-pulse" />
+          <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-shrink-0 shadow-glow-amber/20">
+            <ShieldAlert className="w-5 h-5 animate-pulse" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-white">
-                Human Approval Required
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-sm md:text-base font-bold text-white tracking-tight">
+                Human Approval Checkpoint
               </h3>
-              <span className="text-xs font-mono px-2 py-0.5 rounded bg-amber-900/60 text-amber-300 border border-amber-700/60">
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-700/60">
                 Action: {approval.tool_name}
               </span>
             </div>
-            <p className="text-xs text-amber-200/80 mt-0.5">
-              The agent has reached a safety checkpoint for a potentially destructive or external action.
+            <p className="text-xs text-amber-200/80 mt-0.5 font-sans">
+              Autonomous execution paused. A critical operation requires human engineering sign-off.
             </p>
           </div>
         </div>
 
-        <div className="text-xs font-mono text-amber-400/80">
+        <div className="text-[11px] font-mono text-amber-400/80 bg-amber-950/40 px-2 py-1 rounded border border-amber-900/40">
           ID: {approvalId}
         </div>
       </div>
 
       <div className="mt-4 space-y-4">
         <div>
-          <span className="text-[11px] font-semibold text-amber-300 uppercase tracking-wider block mb-1">
-            Reason / Safety Assessment
+          <span className="text-[10px] font-mono font-medium text-amber-300 uppercase tracking-widest block mb-1">
+            Safety Assessment &amp; Reason
           </span>
-          <p className="text-xs text-slate-200 bg-[#070b14]/90 p-3 rounded-lg border border-slate-800 leading-relaxed font-sans">
+          <div className="text-xs text-slate-100 bg-[#070a11] p-3 rounded-lg border border-white/[0.08] leading-relaxed font-sans shadow-inner-glow">
             {approval.reason || `Action '${approval.tool_name}' requires human approval before proceeding.`}
-          </p>
+          </div>
         </div>
 
         {approval.payload && Object.keys(approval.payload).length > 0 && (
           <div>
-            <span className="text-[11px] font-semibold text-amber-300 uppercase tracking-wider block mb-1 font-mono">
-              Action Payload / Parameters
+            <span className="text-[10px] font-mono font-medium text-amber-300 uppercase tracking-widest block mb-1">
+              Action Payload Parameters
             </span>
             <CodeBlock
               code={approval.payload}
               language="json"
               maxHeight="max-h-48"
+              title="payload.json"
             />
           </div>
         )}
 
         <div>
-          <label className="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-            Reviewer Feedback / Guidance (Optional)
+          <label className="block text-[10px] font-mono font-medium text-mist-300 uppercase tracking-widest mb-1.5">
+            Reviewer Guidance (Optional)
           </label>
           <input
             type="text"
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
-            placeholder="Provide optional corrective guidance to the agent if rejecting or modifying..."
+            placeholder="Provide optional corrective instructions to the agent..."
             disabled={isBusy}
-            className="w-full px-3.5 py-2 bg-[#070b14] border border-slate-700/80 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 font-sans"
+            className="w-full px-3.5 py-2 bg-[#070a11] border border-white/[0.08] rounded-lg text-xs text-slate-100 placeholder-mist-600 focus:outline-none focus:border-amber-500 font-sans shadow-inner-glow"
           />
         </div>
 
@@ -101,12 +105,12 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
             type="button"
             onClick={() => handleDecision(false)}
             disabled={isBusy}
-            className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-rose-950 hover:text-rose-300 hover:border-rose-800 border border-slate-700 text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50"
+            className="px-4 py-2 rounded-lg bg-graphite-900 hover:bg-rose-950/80 hover:text-rose-300 hover:border-rose-800/80 border border-white/[0.08] text-mist-300 text-xs font-medium flex items-center gap-1.5 transition-all disabled:opacity-50 shadow-sm"
           >
             {isBusy ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3.5 h-3.5 text-rose-400" />
             )}
             <span>Reject Action</span>
           </button>
@@ -115,14 +119,14 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
             type="button"
             onClick={() => handleDecision(true)}
             disabled={isBusy}
-            className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-emerald-950 transition-colors disabled:opacity-50"
+            className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-emerald-950/60 border border-emerald-400/30 transition-all disabled:opacity-50"
           >
             {isBusy ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
               <Check className="w-3.5 h-3.5" />
             )}
-            <span>Approve & Continue</span>
+            <span>Approve &amp; Continue Run</span>
           </button>
         </div>
       </div>

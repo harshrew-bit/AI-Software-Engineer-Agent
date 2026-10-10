@@ -1,7 +1,15 @@
-import React from 'react';
-import { ExternalLink, GitPullRequest, GitBranch, RefreshCw, Terminal } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import {
+  ExternalLink,
+  GitPullRequest,
+  GitBranch,
+  RefreshCw,
+  Terminal,
+  Search,
+} from 'lucide-react';
 import { StatusBadge } from '../common/StatusBadge';
 import type { TaskResponse } from '../../types/task';
+
 
 interface TaskListTableProps {
   tasks: TaskResponse[];
@@ -16,6 +24,9 @@ export const TaskListTable: React.FC<TaskListTableProps> = ({
   onSelectTask,
   onRefresh,
 }) => {
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+
   const formatDate = (dateStr: string) => {
     try {
       const date = new Date(dateStr);
@@ -42,67 +53,129 @@ export const TaskListTable: React.FC<TaskListTableProps> = ({
     }
   };
 
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      const matchesSearch =
+        searchQuery.trim() === '' ||
+        task.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        task.repository_url.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        task.user_instruction.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesStatus =
+        statusFilter === 'all' || task.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [tasks, searchQuery, statusFilter]);
+
   return (
-    <div className="glass-card overflow-hidden">
-      <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+    <div className="glass-panel overflow-hidden">
+      {/* Table Header Bar */}
+      <div className="p-5 md:p-6 border-b border-white/[0.06] flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h3 className="text-base font-semibold text-white flex items-center gap-2">
-            <Terminal className="w-4 h-4 text-cyan-400" />
-            Recent Agent Executions
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-icy-400"></span>
+            <span className="text-[11px] font-mono text-mist-400 uppercase tracking-widest">
+              Execution Registry
+            </span>
+          </div>
+          <h3 className="text-base font-bold text-white flex items-center gap-2 mt-1">
+            <Terminal className="w-4 h-4 text-icy-400" />
+            <span>Agent Task Runs</span>
+            <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-graphite-900 border border-white/[0.08] text-mist-300">
+              {tasks.length} total
+            </span>
           </h3>
-          <p className="text-xs text-slate-400 mt-0.5">
-            History of automated branches, commits, and pull requests.
+          <p className="text-xs text-mist-400 mt-0.5">
+            Audit history of autonomous repository clones, diffs, tests, and pull requests.
           </p>
         </div>
 
-        <button
-          onClick={onRefresh}
-          disabled={loading}
-          className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          title="Refresh task list"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-        </button>
+        {/* Search, Filter & Refresh Controls */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Quick text filter */}
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-mist-500 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Filter tasks..."
+              className="pl-8 pr-3 py-1.5 bg-[#070a11] border border-white/[0.08] rounded-lg text-xs text-slate-200 placeholder-mist-600 focus:outline-none focus:border-sky-500/80 w-36 sm:w-48 font-mono"
+            />
+          </div>
+
+          {/* Status filter dropdown */}
+          <div className="relative">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-2.5 py-1.5 bg-[#070a11] border border-white/[0.08] rounded-lg text-xs text-mist-300 focus:outline-none focus:border-sky-500/80 font-mono"
+            >
+              <option value="all">All Statuses</option>
+              <option value="completed">Completed</option>
+              <option value="running">Running</option>
+              <option value="paused_for_approval">Awaiting Approval</option>
+              <option value="failed">Failed</option>
+              <option value="pending">Queued</option>
+            </select>
+          </div>
+
+          <button
+            onClick={onRefresh}
+            disabled={loading}
+            className="p-1.5 rounded-lg bg-steel-900/60 border border-white/[0.08] text-mist-400 hover:text-white hover:bg-steel-800 transition-all shadow-sm"
+            title="Refresh task list"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-icy-400' : ''}`} />
+          </button>
+        </div>
       </div>
 
       {tasks.length === 0 ? (
         <div className="p-12 text-center">
-          <Terminal className="w-8 h-8 text-slate-600 mx-auto mb-3" />
-          <h4 className="text-sm font-medium text-slate-300">No tasks found</h4>
-          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-            Launch your first engineering task above to see autonomous repository workflows in action.
+          <div className="w-12 h-12 rounded-xl bg-graphite-900/80 border border-white/[0.06] flex items-center justify-center mx-auto mb-3 text-mist-500">
+            <Terminal className="w-6 h-6" />
+          </div>
+          <h4 className="text-sm font-semibold text-slate-200">No agent tasks registered</h4>
+          <p className="text-xs text-mist-400 mt-1 max-w-sm mx-auto">
+            Launch your first engineering task above to initialize the autonomous LangGraph runner.
           </p>
+        </div>
+      ) : filteredTasks.length === 0 ? (
+        <div className="p-8 text-center text-xs text-mist-500 italic">
+          No tasks matched the current filter query.
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-900/90 border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
-                <th className="py-3 px-4">Task ID</th>
-                <th className="py-3 px-4">Repository & Instruction</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Phase</th>
-                <th className="py-3 px-4">Deliverables</th>
-                <th className="py-3 px-4">Created</th>
-                <th className="py-3 px-4 text-right">Action</th>
+              <tr className="bg-graphite-950/80 border-b border-white/[0.06] text-mist-400 uppercase tracking-wider font-mono text-[11px]">
+                <th className="py-3 px-4 font-medium">Task ID</th>
+                <th className="py-3 px-4 font-medium">Repository &amp; Instruction</th>
+                <th className="py-3 px-4 font-medium">Status</th>
+                <th className="py-3 px-4 font-medium">Phase</th>
+                <th className="py-3 px-4 font-medium">Deliverables</th>
+                <th className="py-3 px-4 font-medium">Created</th>
+                <th className="py-3 px-4 text-right font-medium">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {tasks.map((task) => (
+            <tbody className="divide-y divide-white/[0.04]">
+              {filteredTasks.map((task) => (
                 <tr
                   key={task.id}
                   onClick={() => onSelectTask(task.id)}
-                  className="hover:bg-slate-800/40 cursor-pointer transition-colors group"
+                  className="hover:bg-white/[0.03] cursor-pointer transition-colors group"
                 >
-                  <td className="py-3.5 px-4 font-mono font-medium text-primary-400 whitespace-nowrap">
-                    {task.id}
+                  <td className="py-3.5 px-4 font-mono font-medium text-icy-300 whitespace-nowrap">
+                    <span className="group-hover:underline">{task.id}</span>
                   </td>
 
                   <td className="py-3.5 px-4 max-w-md">
-                    <div className="font-medium text-slate-200 truncate">
+                    <div className="font-medium text-slate-200 truncate font-mono text-xs">
                       {getRepoName(task.repository_url)}
                     </div>
-                    <div className="text-slate-400 text-[11px] truncate mt-0.5">
+                    <div className="text-mist-400 text-[11px] truncate mt-0.5 font-sans">
                       {task.user_instruction}
                     </div>
                   </td>
@@ -123,24 +196,24 @@ export const TaskListTable: React.FC<TaskListTableProps> = ({
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/80 hover:bg-emerald-900 transition-colors"
+                          className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-emerald-950/50 text-emerald-300 border border-emerald-700/60 hover:bg-emerald-900/60 transition-colors shadow-sm"
                         >
-                          <GitPullRequest className="w-3 h-3" />
+                          <GitPullRequest className="w-3 h-3 text-emerald-400" />
                           <span>PR Created</span>
-                          <ExternalLink className="w-2.5 h-2.5" />
+                          <ExternalLink className="w-2.5 h-2.5 text-emerald-400/80" />
                         </a>
                       ) : task.commit_sha ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
-                          <GitBranch className="w-3 h-3 text-primary-400" />
-                          {task.commit_sha.substring(0, 7)}
+                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-graphite-900/80 text-mist-300 font-mono border border-white/[0.06]">
+                          <GitBranch className="w-3 h-3 text-icy-400" />
+                          <span>{task.commit_sha.substring(0, 7)}</span>
                         </span>
                       ) : (
-                        <span className="text-slate-500 text-[11px]">—</span>
+                        <span className="text-mist-600 text-[11px] font-mono">—</span>
                       )}
                     </div>
                   </td>
 
-                  <td className="py-3.5 px-4 text-slate-400 whitespace-nowrap text-[11px]">
+                  <td className="py-3.5 px-4 text-mist-400 whitespace-nowrap text-[11px] font-mono">
                     {formatDate(task.created_at)}
                   </td>
 
@@ -150,9 +223,9 @@ export const TaskListTable: React.FC<TaskListTableProps> = ({
                         e.stopPropagation();
                         onSelectTask(task.id);
                       }}
-                      className="text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-300 group-hover:bg-primary-600 group-hover:text-white transition-colors"
+                      className="text-xs px-2.5 py-1 rounded bg-steel-900/60 text-mist-300 group-hover:bg-sky-600 group-hover:text-white border border-white/[0.06] group-hover:border-sky-400/50 transition-all font-mono"
                     >
-                      View
+                      Inspect
                     </button>
                   </td>
                 </tr>

@@ -7,6 +7,7 @@ import {
   Radio,
   Loader2,
 } from 'lucide-react';
+
 import { useTaskDetail } from '../hooks/useTaskDetail';
 import { TaskHeader } from '../components/task/TaskHeader';
 import { PipelineTracker } from '../components/task/PipelineTracker';
@@ -40,9 +41,11 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({ taskId, onBack }
   if (loading && !task) {
     return (
       <div className="py-24 text-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary-500 mx-auto mb-3" />
-        <h3 className="text-sm font-semibold text-slate-200">Loading Task Details...</h3>
-        <p className="text-xs text-slate-500 font-mono mt-1">{taskId}</p>
+        <div className="w-14 h-14 rounded-2xl bg-graphite-900 border border-white/[0.08] flex items-center justify-center mx-auto mb-4 shadow-glass">
+          <Loader2 className="w-7 h-7 animate-spin text-icy-400" />
+        </div>
+        <h3 className="text-sm font-bold text-slate-200 tracking-tight">Syncing Task Telemetry...</h3>
+        <p className="text-xs text-mist-500 font-mono mt-1">{taskId}</p>
       </div>
     );
   }
@@ -50,15 +53,15 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({ taskId, onBack }
   if (error && !task) {
     return (
       <div className="py-12 max-w-xl mx-auto">
-        <div className="glass-card p-6 border-rose-900 bg-rose-950/20 text-center">
-          <h3 className="text-base font-semibold text-rose-300">Failed to Load Task</h3>
-          <p className="text-xs text-slate-400 mt-2">{error}</p>
+        <div className="glass-panel p-6 border-rose-800/60 bg-rose-950/20 text-center">
+          <h3 className="text-base font-bold text-rose-300">Failed to Load Task</h3>
+          <p className="text-xs text-mist-400 mt-2 font-sans">{error}</p>
           <div className="mt-6 flex items-center justify-center gap-3">
             <button onClick={onBack} className="btn-secondary text-xs">
-              Back to Dashboard
+              Return to Workspace
             </button>
             <button onClick={refresh} className="btn-primary text-xs">
-              Retry
+              Retry Connection
             </button>
           </div>
         </div>
@@ -74,7 +77,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({ taskId, onBack }
 
   return (
     <div className="space-y-6 pb-16">
-      {/* Task Header */}
+      {/* Task Header HUD */}
       <TaskHeader
         task={task}
         onRefresh={refresh}
@@ -100,75 +103,75 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({ taskId, onBack }
         />
       )}
 
-      {/* Pipeline Progress Tracker */}
+      {/* Pipeline Progress Tracker (Connected 7-Phase Execution Visualization) */}
       <PipelineTracker
         currentPhase={task.current_phase}
         status={task.status}
         retryCount={task.retry_count}
       />
 
-      {/* Tabs Navigation */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-2 overflow-x-auto">
+      {/* Tabs Navigation Bar */}
+      <div className="glass-panel-subtle p-1.5 rounded-xl flex items-center gap-1.5 overflow-x-auto border border-white/[0.06]">
         <button
           onClick={() => setActiveTab('tools')}
-          className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-2 ${
+          className={`px-3.5 py-2 rounded-lg text-xs font-mono transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'tools'
-              ? 'bg-primary-600 text-white shadow'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              ? 'bg-steel-800 text-white shadow-sm border border-white/[0.12] font-semibold'
+              : 'text-mist-400 hover:text-slate-200 hover:bg-white/[0.03]'
           }`}
         >
-          <Wrench className="w-3.5 h-3.5" />
-          <span>Tool History ({task.tool_history?.length || 0})</span>
+          <Wrench className="w-3.5 h-3.5 text-icy-400" />
+          <span>Tool Audit Trail ({task.tool_history?.length || 0})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('files')}
-          className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-2 ${
+          className={`px-3.5 py-2 rounded-lg text-xs font-mono transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'files'
-              ? 'bg-primary-600 text-white shadow'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              ? 'bg-steel-800 text-white shadow-sm border border-white/[0.12] font-semibold'
+              : 'text-mist-400 hover:text-slate-200 hover:bg-white/[0.03]'
           }`}
         >
-          <FileCode2 className="w-3.5 h-3.5" />
-          <span>Files & Diff ({task.modified_files?.length || 0})</span>
+          <FileCode2 className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Files &amp; Diff ({task.modified_files?.length || 0})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('tests')}
-          className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-2 ${
+          className={`px-3.5 py-2 rounded-lg text-xs font-mono transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'tests'
-              ? 'bg-primary-600 text-white shadow'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              ? 'bg-steel-800 text-white shadow-sm border border-white/[0.12] font-semibold'
+              : 'text-mist-400 hover:text-slate-200 hover:bg-white/[0.03]'
           }`}
         >
-          <ShieldCheck className="w-3.5 h-3.5" />
+          <ShieldCheck className="w-3.5 h-3.5 text-icy-300" />
           <span>Test Runs ({task.test_results?.length || 0})</span>
         </button>
 
         {task.plan && (
           <button
             onClick={() => setActiveTab('plan')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-2 ${
+            className={`px-3.5 py-2 rounded-lg text-xs font-mono transition-all flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'plan'
-                ? 'bg-primary-600 text-white shadow'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                ? 'bg-steel-800 text-white shadow-sm border border-white/[0.12] font-semibold'
+                : 'text-mist-400 hover:text-slate-200 hover:bg-white/[0.03]'
             }`}
           >
-            <ListTodo className="w-3.5 h-3.5" />
-            <span>Implementation Plan ({task.plan.steps?.length || 0})</span>
+            <ListTodo className="w-3.5 h-3.5 text-sky-400" />
+            <span>Architecture Plan ({task.plan.steps?.length || 0})</span>
           </button>
         )}
 
         <button
           onClick={() => setActiveTab('events')}
-          className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-2 ${
+          className={`px-3.5 py-2 rounded-lg text-xs font-mono transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'events'
-              ? 'bg-primary-600 text-white shadow'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              ? 'bg-steel-800 text-white shadow-sm border border-white/[0.12] font-semibold'
+              : 'text-mist-400 hover:text-slate-200 hover:bg-white/[0.03]'
           }`}
         >
           <Radio className="w-3.5 h-3.5 text-cyan-400" />
-          <span>Live Event Feed ({events.length})</span>
+          <span>Live SSE Stream ({events.length})</span>
         </button>
       </div>
 
@@ -191,12 +194,21 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({ taskId, onBack }
         )}
 
         {activeTab === 'plan' && task.plan && (
-          <div className="glass-card p-6 space-y-6">
+          <div className="glass-panel p-6 space-y-6 relative overflow-hidden">
+            {/* Top subtle highlight */}
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-icy-400/25 to-transparent pointer-events-none" />
+
             <div>
-              <h3 className="text-base font-semibold text-white">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-icy-400"></span>
+                <span className="text-[10px] font-mono text-mist-400 uppercase tracking-widest">
+                  Plan Strategy
+                </span>
+              </div>
+              <h3 className="text-base font-bold text-white mt-1">
                 Objective: {task.plan.objective}
               </h3>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+              <p className="text-xs text-mist-400 mt-1 leading-relaxed">
                 {task.plan.architecture_overview}
               </p>
             </div>
@@ -205,29 +217,29 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({ taskId, onBack }
               {task.plan.steps.map((step, idx) => (
                 <div
                   key={step.step_id || idx}
-                  className="p-4 rounded-lg bg-[#070b14] border border-slate-800 flex items-start gap-3"
+                  className="p-4 rounded-xl bg-[#070a11] border border-white/[0.06] flex items-start gap-3.5 hover:border-white/[0.12] transition-colors"
                 >
-                  <div className="w-6 h-6 rounded-md bg-slate-800 flex items-center justify-center text-xs font-mono text-primary-400 flex-shrink-0 mt-0.5">
+                  <div className="w-6 h-6 rounded-md bg-graphite-800 border border-white/[0.08] flex items-center justify-center text-xs font-mono text-icy-300 flex-shrink-0 mt-0.5">
                     {idx + 1}
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-semibold text-slate-200">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="text-xs font-semibold text-slate-100">
                         {step.title}
                       </h4>
-                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-graphite-900 text-mist-400 border border-white/[0.06]">
                         {step.status}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                    <p className="text-xs text-mist-400 mt-1 leading-relaxed font-sans">
                       {step.description}
                     </p>
                     {step.target_files && step.target_files.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
                         {step.target_files.map((file, fIdx) => (
                           <span
                             key={fIdx}
-                            className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-cyan-400 border border-slate-800"
+                            className="text-[10px] font-mono px-2 py-0.5 rounded bg-steel-900/60 text-icy-300 border border-white/[0.06]"
                           >
                             {file}
                           </span>
@@ -242,35 +254,47 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({ taskId, onBack }
         )}
 
         {activeTab === 'events' && (
-          <div className="glass-card p-6">
-            <div className="mb-4 pb-3 border-b border-slate-800">
-              <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                <Radio className="w-4 h-4 text-cyan-400" />
-                Real-Time SSE Event Stream
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Live stream of state transitions and lifecycle broadcasts.
-              </p>
+          <div className="glass-panel p-6 relative overflow-hidden">
+            {/* Top subtle highlight */}
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-icy-400/25 to-transparent pointer-events-none" />
+
+            <div className="mb-4 pb-3 border-b border-white/[0.06] flex items-center justify-between">
+              <div>
+                <h3 className="text-sm md:text-base font-bold text-white flex items-center gap-2">
+                  <Radio className="w-4 h-4 text-cyan-400 animate-pulse" />
+                  <span>Real-Time SSE Event Stream</span>
+                </h3>
+                <p className="text-xs text-mist-400 mt-0.5">
+                  Live broadcast of state transitions, lifecycle events, and tool telemetry.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-950/40 text-cyan-300 border border-cyan-800/50 text-[11px] font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></span>
+                <span>Streaming</span>
+              </div>
             </div>
 
             {events.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-500 italic">
-                Listening for live task events...
+              <div className="p-12 text-center text-xs text-mist-500 italic font-mono">
+                Listening on Server-Sent Events stream for incoming task transitions...
               </div>
             ) : (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
+              <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
                 {events.map((ev, idx) => (
                   <div
                     key={idx}
-                    className="p-2.5 rounded-lg bg-[#070b14] border border-slate-800 flex items-start justify-between gap-4 font-mono text-xs"
+                    className="p-3 rounded-lg bg-[#070a11] border border-white/[0.06] flex items-start justify-between gap-4 font-mono text-xs hover:border-white/[0.1] transition-colors"
                   >
-                    <div className="flex items-start gap-2 min-w-0">
-                      <span className="px-1.5 py-0.5 rounded bg-primary-950 text-primary-400 border border-primary-800/60 text-[10px]">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <span className="px-2 py-0.5 rounded bg-steel-900/80 text-icy-300 border border-white/[0.08] text-[10px] flex-shrink-0">
                         {ev.event_type}
                       </span>
-                      <span className="text-slate-300 truncate">{ev.message}</span>
+                      <span className="text-slate-200 truncate leading-relaxed">
+                        {ev.message}
+                      </span>
                     </div>
-                    <span className="text-slate-500 text-[10px] flex-shrink-0">
+                    <span className="text-mist-500 text-[10px] flex-shrink-0">
                       {new Date(ev.timestamp).toLocaleTimeString()}
                     </span>
                   </div>
