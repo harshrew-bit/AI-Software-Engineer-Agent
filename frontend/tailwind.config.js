@@ -87,6 +87,8 @@ export default {
         'ambient-reverse': 'driftReverse 38s ease-in-out infinite alternate',
         'contour-glow': 'contourGlow 10s ease-in-out infinite alternate',
         'pulse-subtle': 'pulseSubtle 3s ease-in-out infinite',
+        'shimmer-ridge': 'shimmerRidge 24s linear infinite',
+        'shimmer-ridge-reverse': 'shimmerRidgeReverse 28s linear infinite',
       },
       keyframes: {
         driftSlow: {
@@ -107,9 +109,18 @@ export default {
           '0%, 100%': { opacity: '1', transform: 'scale(1)' },
           '50%': { opacity: '0.75', transform: 'scale(1.03)' },
         },
+        shimmerRidge: {
+          '0%': { strokeDashoffset: '1380' },
+          '100%': { strokeDashoffset: '0' },
+        },
+        shimmerRidgeReverse: {
+          '0%': { strokeDashoffset: '0' },
+          '100%': { strokeDashoffset: '1140' },
+        },
       },
     },
   },
   plugins: [],
 }
+
 
